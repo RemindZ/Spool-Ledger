@@ -1,5 +1,6 @@
 pub mod error;
 pub mod model;
+pub mod profiles;
 
 pub use error::AppError;
 pub use model::*;

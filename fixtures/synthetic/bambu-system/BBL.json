@@ -1,0 +1,24 @@
+{
+  "name": "Bambulab",
+  "version": "02.08.00.04",
+  "machine_model_list": [
+    {
+      "name": "Bambu Lab H2C",
+      "sub_path": "machine/Bambu Lab H2C.json"
+    }
+  ],
+  "filament_list": [
+    {
+      "name": "fdm_filament_pla",
+      "sub_path": "filament/fdm_filament_pla.json"
+    },
+    {
+      "name": "Generic PLA @base",
+      "sub_path": "filament/Generic PLA @base.json"
+    },
+    {
+      "name": "Generic PLA @BBL H2C",
+      "sub_path": "filament/Generic PLA @BBL H2C.json"
+    }
+  ]
+}
