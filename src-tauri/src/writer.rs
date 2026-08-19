@@ -57,9 +57,17 @@ pub struct GeneratedArtifact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StagedDeletion {
+    pub operation_ids: Vec<String>,
+    pub relative_path: PathBuf,
+    pub expected_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StagedRun {
     pub root: PathBuf,
     pub artifacts: Vec<GeneratedArtifact>,
+    pub deletions: Vec<StagedDeletion>,
 }
 
 pub struct Writer;
@@ -531,6 +539,7 @@ fn write_staging_tree(
         Ok(StagedRun {
             root: staging_root.to_path_buf(),
             artifacts,
+            deletions: Vec::new(),
         })
     })();
     if result.is_err() {

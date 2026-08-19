@@ -6,8 +6,10 @@ pub mod naming;
 pub mod planner;
 pub mod platform;
 pub mod profiles;
+pub mod receipt;
 pub mod resolver;
 pub mod targets;
+pub mod transaction;
 pub mod writer;
 
 pub use error::AppError;
