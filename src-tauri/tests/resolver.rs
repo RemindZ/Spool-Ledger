@@ -77,6 +77,146 @@ fn inheritance_cycle_is_blocking() {
 }
 
 #[test]
+fn current_orca_material_fields_have_explicit_transfer_policies() {
+    let policy = FieldPolicyTable::bundled().unwrap();
+    for field in [
+        "complete_print_exhaust_fan_speed",
+        "during_print_exhaust_fan_speed",
+        "filament_is_support",
+        "filament_minimal_purge_on_wipe_tower",
+        "filament_scarf_gap",
+        "filament_scarf_height",
+        "filament_scarf_length",
+        "filament_scarf_seam_type",
+        "filament_shrink",
+        "filament_soluble",
+        "overhang_fan_threshold",
+        "reduce_fan_stop_start_freq",
+    ] {
+        assert_eq!(
+            policy.classify(field),
+            Some(FieldClass::SourceMaterial),
+            "{field}"
+        );
+    }
+    for field in [
+        "filament_deretraction_speed",
+        "filament_long_retractions_when_cut",
+        "filament_retract_before_wipe",
+        "filament_retract_restart_extra",
+        "filament_retract_when_changing_layer",
+        "filament_retraction_distances_when_cut",
+        "filament_retraction_length",
+        "filament_retraction_minimum_travel",
+        "filament_retraction_speed",
+        "filament_wipe",
+        "filament_wipe_distance",
+        "filament_z_hop",
+        "filament_z_hop_types",
+    ] {
+        assert_eq!(policy.classify(field), Some(FieldClass::Mapped), "{field}");
+    }
+}
+
+#[test]
+fn current_bambu_custom_profile_fields_have_explicit_policies() {
+    let policy = FieldPolicyTable::bundled().unwrap();
+    for field in [
+        "enable_overhang_bridge_fan",
+        "enable_pressure_advance",
+        "overhang_threshold_participating_cooling",
+    ] {
+        assert_eq!(
+            policy.classify(field),
+            Some(FieldClass::SourceMaterial),
+            "{field}"
+        );
+    }
+    assert_eq!(
+        policy.classify("default_filament_colour"),
+        Some(FieldClass::Metadata)
+    );
+}
+
+#[test]
+fn current_bambu_h2c_fields_have_explicit_target_policies() {
+    let policy = FieldPolicyTable::bundled().unwrap();
+    for field in [
+        "additional_fan_full_speed_layer",
+        "circle_compensation_speed",
+        "close_additional_fan_first_x_layers",
+        "cooling_perimeter_transition_distance",
+        "cooling_slowdown_logic",
+        "counter_coef_1",
+        "counter_coef_2",
+        "counter_coef_3",
+        "counter_limit_max",
+        "counter_limit_min",
+        "diameter_limit",
+        "filament_adaptive_volumetric_speed",
+        "filament_adhesiveness_category",
+        "filament_bridge_speed",
+        "filament_change_length",
+        "filament_change_length_nc",
+        "filament_contact_safe",
+        "filament_cooling_before_tower",
+        "filament_dev_drying_cooling_temperature",
+        "filament_dev_drying_softening_temperature",
+        "filament_emission_safe",
+        "filament_enable_overhang_speed",
+        "filament_extruder_compatibility",
+        "filament_flush_temp",
+        "filament_flush_temp_fast",
+        "filament_flush_volumetric_speed",
+        "filament_ingredients_safe",
+        "filament_long_retractions_when_ec",
+        "filament_metal_stickiness",
+        "filament_overhang_1_4_speed",
+        "filament_overhang_2_4_speed",
+        "filament_overhang_3_4_speed",
+        "filament_overhang_4_4_speed",
+        "filament_overhang_totally_speed",
+        "filament_pre_cooling_temperature",
+        "filament_pre_cooling_temperature_nc",
+        "filament_preheat_temperature_delta",
+        "filament_prime_volume",
+        "filament_prime_volume_nc",
+        "filament_printable",
+        "filament_ramming_travel_time",
+        "filament_ramming_travel_time_nc",
+        "filament_ramming_volumetric_speed",
+        "filament_ramming_volumetric_speed_nc",
+        "filament_retract_length_nc",
+        "filament_retraction_distances_when_ec",
+        "filament_tower_interface_pre_extrusion_dist",
+        "filament_tower_interface_pre_extrusion_length",
+        "filament_tower_interface_print_temp",
+        "filament_tower_interface_purge_volume",
+        "filament_tower_ironing_area",
+        "filament_velocity_adaptation_factor",
+        "hole_coef_1",
+        "hole_coef_2",
+        "hole_coef_3",
+        "hole_limit_max",
+        "hole_limit_min",
+        "impact_strength_z",
+        "long_retractions_when_ec",
+        "no_slow_down_for_cooling_on_outwalls",
+        "override_process_overhang_speed",
+        "pre_start_fan_time",
+        "retraction_distances_when_ec",
+        "volumetric_speed_coefficients",
+    ] {
+        assert_eq!(
+            policy.classify(field),
+            Some(FieldClass::TargetMachine),
+            "{field}"
+        );
+    }
+    assert_eq!(policy.classify("description"), Some(FieldClass::Metadata));
+}
+
+#[test]
 fn field_policy_blocks_unknown_cross_application_fields() {
     let policy = FieldPolicyTable::bundled().unwrap();
     assert_eq!(

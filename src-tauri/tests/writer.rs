@@ -156,6 +156,11 @@ fn stages_normal_and_flattened_profiles_for_selected_nozzles_only() {
         serde_json::json!(["230", "230", "220"])
     );
     assert_eq!(
+        custom["filament_retraction_length"],
+        serde_json::json!(["0.4", "0.4", "0.4"])
+    );
+    assert_eq!(custom["filament_wipe"], serde_json::json!(["0", "0", "1"]));
+    assert_eq!(
         custom["filament_start_gcode"],
         serde_json::json!(["; synthetic target gcode\n"])
     );

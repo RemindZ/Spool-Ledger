@@ -48,6 +48,27 @@ filament_id = "P" + first_7_hex(md5(custom_display_name + "@" + non_secret_user_
 - Automated tests compared source and destination bytes during copies.
 - Timestamped ZIP backups preceded every live write in the manual proof.
 
+## Automated copied-root acceptance
+
+The ignored Windows acceptance test was rerun on 2026-08-20 against byte-verified local copies. It reads and hashes the live roots but migrates only into a fresh temporary copy of the Bambu account:
+
+```text
+cargo test --manifest-path src-tauri/Cargo.toml --test copied_roots -- --ignored --nocapture
+```
+
+Observed evidence:
+
+- Live/copied input counts: 482 Orca files, 2,519 Bambu system-profile files, and 242 Bambu account files. The adjacent `BBL.json` manifest was hashed separately.
+- 16 selectable Panchroma source families.
+- H2C target nozzles: 0.2, 0.4, 0.6, and 0.8 mm.
+- 64 deterministic `create` operations.
+- 16 normal presets, 64 flattened custom JSON profiles, and 64 paired `.info` sidecars.
+- 16 local filament IDs, each shared by exactly four nozzle profiles.
+- 144 committed files, 144 journal entries, and 144 committed receipt entries.
+- The pre-run ZIP contained the 60 files remaining in the temporary `filament` directory after its prior Panchroma outputs were removed.
+- Every committed path remained under the temporary destination.
+- The live Orca root, Bambu system root, Bambu account root, and adjacent Bambu manifest had identical SHA-256 maps before and after the run.
+
 ## Important limits
 
 - A `PFUS...` ID proves cloud-ID assignment, not AMS visibility.

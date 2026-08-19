@@ -13,6 +13,12 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MappedFieldStrategy {
+    SourceForStandardAndHighFlow,
+    NonNilSourceForStandardAndHighFlow,
+}
+
 #[derive(Debug, Clone)]
 pub struct BambuAdapter {
     pub id: &'static str,
@@ -28,6 +34,33 @@ impl BambuAdapter {
             profile_version: "2.0.0.56",
             setting_id_prefix: "PFUS",
             field_policy: FieldPolicyTable::bundled().expect("bundled field policy must be valid"),
+        }
+    }
+
+    fn mapped_field_strategy(&self, key: &str) -> Result<MappedFieldStrategy, AppError> {
+        match key {
+            "filament_flow_ratio"
+            | "filament_max_volumetric_speed"
+            | "nozzle_temperature"
+            | "nozzle_temperature_initial_layer" => {
+                Ok(MappedFieldStrategy::SourceForStandardAndHighFlow)
+            }
+            "filament_deretraction_speed"
+            | "filament_long_retractions_when_cut"
+            | "filament_retract_before_wipe"
+            | "filament_retract_restart_extra"
+            | "filament_retract_when_changing_layer"
+            | "filament_retraction_distances_when_cut"
+            | "filament_retraction_length"
+            | "filament_retraction_minimum_travel"
+            | "filament_retraction_speed"
+            | "filament_wipe"
+            | "filament_wipe_distance"
+            | "filament_z_hop"
+            | "filament_z_hop_types" => Ok(MappedFieldStrategy::NonNilSourceForStandardAndHighFlow),
+            _ => Err(AppError::UnsupportedSchema(format!(
+                "mapped field has no adapter strategy: {key}"
+            ))),
         }
     }
 }
@@ -438,17 +471,28 @@ fn transfer_values(
         .cloned()
         .collect();
     for key in mapped_keys {
-        if let Some(value) = normalize_mapped_vector(&key, source, target)? {
+        let strategy = adapter.mapped_field_strategy(&key)?;
+        if let Some(value) = normalize_mapped_vector(&key, source, target, strategy)? {
             output.insert(key, value);
         }
     }
     Ok(output)
 }
 
+fn mapped_source_value(value: Option<&String>, strategy: MappedFieldStrategy) -> Option<&String> {
+    match strategy {
+        MappedFieldStrategy::SourceForStandardAndHighFlow => value,
+        MappedFieldStrategy::NonNilSourceForStandardAndHighFlow => {
+            value.filter(|candidate| !candidate.eq_ignore_ascii_case("nil"))
+        }
+    }
+}
+
 fn normalize_mapped_vector(
     key: &str,
     source: &EffectiveProfile,
     target: &EffectiveProfile,
+    strategy: MappedFieldStrategy,
 ) -> Result<Option<Value>, AppError> {
     let target_variants =
         string_array(target.value("filament_extruder_variant"), "target variants")?;
@@ -457,9 +501,9 @@ fn normalize_mapped_vector(
             "target profile has no extruder variants".to_owned(),
         ));
     }
-    let Some(target_value) = target.value(key) else {
-        return Ok(source.value(key).cloned());
-    };
+    let target_value = target.value(key).ok_or_else(|| {
+        AppError::UnsupportedSchema(format!("target profile has no mapped field: {key}"))
+    })?;
     let target_values = string_array(Some(target_value), key)?;
     let source_values = match source.value(key) {
         Some(value) => string_array(Some(value), key)?,
@@ -471,15 +515,18 @@ fn normalize_mapped_vector(
     };
     let mut mapped = Vec::with_capacity(target_variants.len());
     for (index, variant) in target_variants.iter().enumerate() {
-        let exact_source = source_variants
-            .iter()
-            .position(|candidate| candidate == variant)
-            .and_then(|position| source_values.get(position));
+        let exact_source = mapped_source_value(
+            source_variants
+                .iter()
+                .position(|candidate| candidate == variant)
+                .and_then(|position| source_values.get(position)),
+            strategy,
+        );
         let source_standard = if matches!(
             variant.as_str(),
             "Direct Drive Standard" | "Direct Drive High Flow"
         ) {
-            source_values.first()
+            mapped_source_value(source_values.first(), strategy)
         } else {
             None
         };

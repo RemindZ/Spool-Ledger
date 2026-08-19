@@ -33,6 +33,11 @@
         "16",
         "12"
     ],
+    "filament_retraction_length": [
+        "0.4",
+        "0.4",
+        "0.4"
+    ],
     "filament_settings_id": [
         "Northstar PLA Aurora @Bambu Lab H2C 0.4 nozzle"
     ],
@@ -44,6 +49,11 @@
     ],
     "filament_vendor": [
         "Northstar"
+    ],
+    "filament_wipe": [
+        "0",
+        "0",
+        "1"
     ],
     "from": "User",
     "inherits": "",
