@@ -5,6 +5,9 @@ import type {
   LocalRunResult,
   MigrationPlan,
   MigrationStatus,
+  NameOverride,
+  NamingPreset,
+  NamingRule,
   NozzleSelection,
   OperationState,
   PrinterTarget,
@@ -35,6 +38,24 @@ export interface SourceFilters {
   selectedOnly: boolean;
 }
 
+export interface WorkspacePreferences {
+  selectedAccountId: string | null;
+  selectedSourceIds: string[];
+  selectedNozzles: Record<string, string[]>;
+  showCustomPrinters: boolean;
+  filters: SourceFilters;
+  presetTemplate: string;
+  amsTemplate: string;
+  presetRules: NamingRule[];
+  amsRules: NamingRule[];
+}
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: SourceFilters;
+}
+
 export interface OperationProgress {
   evidence: EvidenceLevel;
   state: OperationState;
@@ -55,6 +76,9 @@ export interface AppState {
   filters: SourceFilters;
   presetTemplate: string;
   amsTemplate: string;
+  presetRules: NamingRule[];
+  amsRules: NamingRule[];
+  nameOverrides: NameOverride[];
   plan: MigrationPlan | null;
   progress: Record<string, OperationProgress>;
   result: LocalRunResult | null;
@@ -77,6 +101,8 @@ export type AppAction =
   | { type: "nozzle_toggled"; printerId: string; diameter: string }
   | { type: "select_printer_nozzles"; printerId: string; selected: boolean }
   | { type: "templates_changed"; preset: string; ams: string }
+  | { type: "rules_changed"; presetRules: NamingRule[]; amsRules: NamingRule[] }
+  | { type: "name_overrides_changed"; overrides: NameOverride[] }
   | { type: "planning_started" }
   | { type: "plan_built"; plan: MigrationPlan }
   | { type: "execution_started" }
@@ -107,22 +133,32 @@ function emptyFilters(): SourceFilters {
   };
 }
 
-export function createInitialState(theme: Theme = "system"): AppState {
+export function createInitialState(
+  theme: Theme = "system",
+  preferences: WorkspacePreferences | null = null,
+): AppState {
   return {
     phase: "idle",
     theme,
     discovery: null,
-    selectedAccountId: null,
+    selectedAccountId: preferences?.selectedAccountId ?? null,
     sourceCatalogId: null,
     targetCatalogId: null,
     sources: [],
     printers: [],
-    selectedSourceIds: new Set(),
-    selectedNozzles: {},
-    showCustomPrinters: false,
-    filters: emptyFilters(),
-    presetTemplate: DEFAULT_PRESET_TEMPLATE,
-    amsTemplate: DEFAULT_AMS_TEMPLATE,
+    selectedSourceIds: new Set(preferences?.selectedSourceIds ?? []),
+    selectedNozzles: Object.fromEntries(
+      Object.entries(preferences?.selectedNozzles ?? {}).map(
+        ([printer, nozzles]) => [printer, new Set(nozzles)],
+      ),
+    ),
+    showCustomPrinters: preferences?.showCustomPrinters ?? false,
+    filters: preferences?.filters ?? emptyFilters(),
+    presetTemplate: preferences?.presetTemplate ?? DEFAULT_PRESET_TEMPLATE,
+    amsTemplate: preferences?.amsTemplate ?? DEFAULT_AMS_TEMPLATE,
+    presetRules: preferences?.presetRules ?? [],
+    amsRules: preferences?.amsRules ?? [],
+    nameOverrides: [],
     plan: null,
     progress: {},
     result: null,
@@ -190,22 +226,54 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         error: null,
       });
     }
-    case "sources_loaded":
+    case "sources_loaded": {
+      const available = new Set(action.sources.map((source) => source.id));
       return invalidatePlan({
         ...state,
         sourceCatalogId: action.catalogId,
         sources: action.sources,
+        selectedSourceIds: new Set(
+          [...state.selectedSourceIds].filter((id) => available.has(id)),
+        ),
         phase: "ready",
         error: null,
       });
-    case "targets_loaded":
+    }
+    case "targets_loaded": {
+      const supported = new Map(
+        action.printers.map((printer) => [
+          printer.id,
+          new Set(
+            printer.nozzles
+              .filter((nozzle) => nozzle.supported)
+              .map((nozzle) => nozzle.diameter),
+          ),
+        ]),
+      );
+      const selectedNozzles = Object.fromEntries(
+        Object.entries(state.selectedNozzles)
+          .map(
+            ([printer, nozzles]) =>
+              [
+                printer,
+                new Set(
+                  [...nozzles].filter((diameter) =>
+                    supported.get(printer)?.has(diameter),
+                  ),
+                ),
+              ] as const,
+          )
+          .filter(([, nozzles]) => nozzles.size > 0),
+      );
       return invalidatePlan({
         ...state,
         targetCatalogId: action.catalogId,
         printers: action.printers,
+        selectedNozzles,
         phase: "ready",
         error: null,
       });
+    }
     case "source_toggled":
       return invalidatePlan({
         ...state,
@@ -257,6 +325,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         presetTemplate: action.preset,
         amsTemplate: action.ams,
       });
+    case "rules_changed":
+      return invalidatePlan({
+        ...state,
+        presetRules: action.presetRules,
+        amsRules: action.amsRules,
+      });
+    case "name_overrides_changed":
+      return invalidatePlan({ ...state, nameOverrides: action.overrides });
     case "planning_started":
       return { ...state, phase: "planning", error: null };
     case "plan_built":
@@ -479,4 +555,247 @@ export function loadTheme(storage: PreferencesStorage): Theme {
 
 export function persistTheme(storage: PreferencesStorage, theme: Theme): void {
   storage.setItem("bfm.theme", theme);
+}
+
+export function loadWorkspacePreferences(
+  storage: PreferencesStorage,
+): WorkspacePreferences | null {
+  const value = storage.getItem("bfm.workspace");
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (!parsed || parsed.version !== 1) return null;
+    const selectedSourceIds = stringArray(parsed.selected_source_ids);
+    const selectedNozzles = stringArrayRecord(parsed.selected_nozzles);
+    const filters = deserializeFilters(parsed.filters);
+    if (!selectedSourceIds || !selectedNozzles || !filters) return null;
+    const presetRules =
+      Array.isArray(parsed.preset_rules) &&
+      parsed.preset_rules.every(isNamingRule)
+        ? parsed.preset_rules
+        : [];
+    const amsRules =
+      Array.isArray(parsed.ams_rules) && parsed.ams_rules.every(isNamingRule)
+        ? parsed.ams_rules
+        : [];
+    return {
+      selectedAccountId:
+        typeof parsed.selected_account_id === "string"
+          ? parsed.selected_account_id
+          : null,
+      selectedSourceIds,
+      selectedNozzles,
+      showCustomPrinters: parsed.show_custom_printers === true,
+      filters,
+      presetTemplate:
+        typeof parsed.preset_template === "string"
+          ? parsed.preset_template
+          : DEFAULT_PRESET_TEMPLATE,
+      amsTemplate:
+        typeof parsed.ams_template === "string"
+          ? parsed.ams_template
+          : DEFAULT_AMS_TEMPLATE,
+      presetRules,
+      amsRules,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function persistWorkspacePreferences(
+  storage: PreferencesStorage,
+  state: AppState,
+): void {
+  storage.setItem(
+    "bfm.workspace",
+    JSON.stringify({
+      version: 1,
+      selected_account_id: state.selectedAccountId,
+      selected_source_ids: [...state.selectedSourceIds].sort(),
+      selected_nozzles: Object.fromEntries(
+        Object.entries(state.selectedNozzles).map(([printer, nozzles]) => [
+          printer,
+          [...nozzles].sort(numericSort),
+        ]),
+      ),
+      show_custom_printers: state.showCustomPrinters,
+      filters: serializeFilters(state.filters),
+      preset_template: state.presetTemplate,
+      ams_template: state.amsTemplate,
+      preset_rules: state.presetRules,
+      ams_rules: state.amsRules,
+    }),
+  );
+}
+
+export function loadFilterPresets(storage: PreferencesStorage): FilterPreset[] {
+  const value = storage.getItem("bfm.filter-presets");
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const record = item as Record<string, unknown>;
+      const filters = deserializeFilters(record.filters);
+      return typeof record.id === "string" &&
+        typeof record.name === "string" &&
+        filters
+        ? [{ id: record.id, name: record.name, filters }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function persistFilterPresets(
+  storage: PreferencesStorage,
+  presets: FilterPreset[],
+): void {
+  storage.setItem(
+    "bfm.filter-presets",
+    JSON.stringify(
+      presets.map((preset) => ({
+        id: preset.id,
+        name: preset.name,
+        filters: serializeFilters(preset.filters),
+      })),
+    ),
+  );
+}
+
+function serializeFilters(filters: SourceFilters): Record<string, unknown> {
+  return {
+    search: filters.search,
+    source_apps: [...filters.sourceApps].sort(),
+    source_kinds: [...filters.sourceKinds].sort(),
+    vendors: [...filters.vendors].sort(),
+    materials: [...filters.materials].sort(),
+    families: [...filters.families].sort(),
+    variants: [...filters.variants].sort(),
+    compatible_printers: [...filters.compatiblePrinters].sort(),
+    migration_statuses: [...filters.migrationStatuses].sort(),
+    selected_only: filters.selectedOnly,
+  };
+}
+
+function deserializeFilters(value: unknown): SourceFilters | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const sourceApps = stringArray(record.source_apps);
+  const sourceKinds = stringArray(record.source_kinds);
+  const vendors = stringArray(record.vendors);
+  const materials = stringArray(record.materials);
+  const families = stringArray(record.families);
+  const variants = stringArray(record.variants);
+  const compatiblePrinters = stringArray(record.compatible_printers);
+  const migrationStatuses = stringArray(record.migration_statuses);
+  if (
+    !sourceApps ||
+    !sourceKinds ||
+    !vendors ||
+    !materials ||
+    !families ||
+    !variants ||
+    !compatiblePrinters ||
+    !migrationStatuses
+  )
+    return null;
+  return {
+    search: typeof record.search === "string" ? record.search : "",
+    sourceApps: new Set(
+      sourceApps.filter(
+        (item): item is SourceApp =>
+          item === "orca_slicer" || item === "bambu_studio",
+      ),
+    ),
+    sourceKinds: new Set(
+      sourceKinds.filter(
+        (item): item is SourceKind =>
+          item === "factory_system" || item === "user_custom",
+      ),
+    ),
+    vendors: new Set(vendors),
+    materials: new Set(materials),
+    families: new Set(families),
+    variants: new Set(variants),
+    compatiblePrinters: new Set(compatiblePrinters),
+    migrationStatuses: new Set(
+      migrationStatuses.filter((item): item is MigrationStatus =>
+        [
+          "new",
+          "already_migrated",
+          "incomplete",
+          "conflicting",
+          "unsupported",
+        ].includes(item),
+      ),
+    ),
+    selectedOnly: record.selected_only === true,
+  };
+}
+
+function stringArray(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : null;
+}
+
+function stringArrayRecord(value: unknown): Record<string, string[]> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (!entries.every(([, nozzles]) => stringArray(nozzles) !== null))
+    return null;
+  return Object.fromEntries(entries) as Record<string, string[]>;
+}
+
+export function loadNamingPresets(storage: PreferencesStorage): NamingPreset[] {
+  const value = storage.getItem("bfm.naming-presets");
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every(isNamingPreset) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function persistNamingPresets(
+  storage: PreferencesStorage,
+  presets: NamingPreset[],
+): void {
+  storage.setItem("bfm.naming-presets", JSON.stringify(presets));
+}
+
+function isNamingPreset(value: unknown): value is NamingPreset {
+  if (!value || typeof value !== "object") return false;
+  const preset = value as Partial<NamingPreset>;
+  return (
+    typeof preset.id === "string" &&
+    typeof preset.name === "string" &&
+    typeof preset.preset_template === "string" &&
+    typeof preset.ams_template === "string" &&
+    Array.isArray(preset.preset_rules) &&
+    preset.preset_rules.every(isNamingRule) &&
+    Array.isArray(preset.ams_rules) &&
+    preset.ams_rules.every(isNamingRule)
+  );
+}
+
+function isNamingRule(value: unknown): value is NamingRule {
+  if (!value || typeof value !== "object") return false;
+  const rule = value as Partial<NamingRule>;
+  return (
+    typeof rule.id === "string" &&
+    (rule.kind === "wildcard" || rule.kind === "regex") &&
+    typeof rule.pattern === "string" &&
+    typeof rule.replacement === "string" &&
+    typeof rule.case_sensitive === "boolean" &&
+    (rule.condition === null ||
+      (typeof rule.condition === "object" &&
+        typeof rule.condition?.field === "string" &&
+        typeof rule.condition?.value === "string"))
+  );
 }

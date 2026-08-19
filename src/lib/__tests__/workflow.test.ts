@@ -61,8 +61,14 @@ const plan: MigrationPlan = {
       printer_preset_name: "Bambu Lab H2C 0.4 nozzle",
       nozzle: "0.4",
       custom_unverified: false,
-      source_settings_fingerprint: "a",
+      source_precondition_fingerprint: "source-a",
+      material_settings_fingerprint: "material-a",
       precondition_fingerprint: null,
+      identity_fingerprint: {
+        name: "polymaker pla panchroma satin",
+        printer: "bambu lab h2c 0.4 nozzle",
+        nozzle: "0.4",
+      },
       action: "block",
       conflict: {
         kind: "settings_mismatch",
@@ -119,17 +125,26 @@ describe("workflow panels", () => {
     expect(onSelectAll).toHaveBeenCalledWith("official:H2C", true);
   });
 
-  it("keeps slicing and AMS templates separate with live examples", async () => {
+  it("keeps slicing and AMS templates separate with live rule and preset controls", async () => {
     const onTemplatesChanged = vi.fn();
+    const onRulesChanged = vi.fn();
+    const onSavePreset = vi.fn();
     render(NamingPanel, {
       props: {
         presetTemplate: "{clean_name} - {printer_code}",
         amsTemplate: "{vendor} {material} {clean_name}",
+        presetRules: [],
+        amsRules: [],
+        savedPresets: [],
         preview: {
+          preset_before: "Panchroma Satin - H2C",
           preset_name: "Panchroma Satin - H2C",
+          ams_before: "Polymaker PLA Panchroma Satin",
           ams_name: "Polymaker PLA Panchroma Satin",
         },
         onTemplatesChanged,
+        onRulesChanged,
+        onSavePreset,
       },
     });
     expect(screen.getByText("Panchroma Satin - H2C")).toBeInTheDocument();
@@ -144,13 +159,51 @@ describe("workflow panels", () => {
       },
     );
     expect(onTemplatesChanged).toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByText("Advanced naming rules"));
+    await fireEvent.input(screen.getByLabelText("Rule pattern"), {
+      target: { value: "Polymaker PLA *" },
+    });
+    await fireEvent.input(screen.getByLabelText("Replacement"), {
+      target: { value: "$1" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
+    expect(onRulesChanged).toHaveBeenCalledWith(
+      [],
+      [
+        expect.objectContaining({
+          kind: "wildcard",
+          pattern: "Polymaker PLA *",
+          replacement: "$1",
+          case_sensitive: false,
+        }),
+      ],
+    );
+
+    await fireEvent.input(screen.getByLabelText("Naming preset name"), {
+      target: { value: "Panchroma clean" },
+    });
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Save naming preset" }),
+    );
+    expect(onSavePreset).toHaveBeenCalledWith("Panchroma clean");
   });
 
-  it("shows every target and defaults conflicts to blocked", () => {
-    render(PlanTable, { props: { plan } });
+  it("shows every target, blocks conflicts, and emits inline name overrides", async () => {
+    const onOverride = vi.fn();
+    render(PlanTable, { props: { plan, onOverride } });
     expect(screen.getByText("Bambu Lab H2C 0.4 nozzle")).toBeInTheDocument();
     expect(screen.getByText("Blocked")).toBeInTheDocument();
     expect(screen.getByText("Existing settings differ")).toBeInTheDocument();
+    await fireEvent.change(
+      screen.getByLabelText("Slicing name for Panchroma PLA Satin"),
+      { target: { value: "Satin hand tuned" } },
+    );
+    expect(onOverride).toHaveBeenCalledWith(
+      "op-1",
+      "Satin hand tuned",
+      "Polymaker PLA Panchroma Satin",
+    );
   });
 
   it("does not claim AMS verification from a cloud ID", () => {

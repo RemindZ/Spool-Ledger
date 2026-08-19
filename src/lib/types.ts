@@ -74,6 +74,12 @@ export interface Conflict {
   message: string;
 }
 
+export interface IdentityFingerprint {
+  name: string;
+  printer: string;
+  nozzle: string;
+}
+
 export interface PlanOperation {
   id: string;
   source_id: string;
@@ -86,8 +92,10 @@ export interface PlanOperation {
   printer_preset_name: string;
   nozzle: string;
   custom_unverified: boolean;
-  source_settings_fingerprint: string;
+  source_precondition_fingerprint: string;
+  material_settings_fingerprint: string;
   precondition_fingerprint: string | null;
+  identity_fingerprint: IdentityFingerprint;
   action: PlanAction;
   conflict: Conflict | null;
 }
@@ -100,6 +108,56 @@ export interface MigrationPlan {
 export interface NozzleSelection {
   printer_id: string;
   diameters: string[];
+}
+
+export type RulePatternKind = "wildcard" | "regex";
+export type RuleConditionField =
+  "source_app" | "source_kind" | "vendor" | "material" | "family";
+
+export interface RuleConditionSpec {
+  field: RuleConditionField;
+  value: string;
+}
+
+export interface NamingRule {
+  id: string;
+  kind: RulePatternKind;
+  pattern: string;
+  replacement: string;
+  case_sensitive: boolean;
+  condition: RuleConditionSpec | null;
+}
+
+export interface NamingRuleSpec {
+  kind: RulePatternKind;
+  pattern: string;
+  replacement: string;
+  case_sensitive: boolean;
+  condition: RuleConditionSpec | null;
+}
+
+export interface NameOverride {
+  source_id: string;
+  printer_id: string;
+  nozzle: string;
+  preset_name: string | null;
+  ams_name: string | null;
+}
+
+export interface NamingPreset {
+  id: string;
+  name: string;
+  preset_template: string;
+  ams_template: string;
+  preset_rules: NamingRule[];
+  ams_rules: NamingRule[];
+}
+
+export interface NamePreview {
+  preset_before: string;
+  preset_name: string;
+  ams_before: string;
+  ams_name: string;
 }
 
 export interface LocalRunResult {

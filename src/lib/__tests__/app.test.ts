@@ -70,8 +70,14 @@ const operation = {
   printer_preset_name: "Bambu Lab H2C 0.4 nozzle",
   nozzle: "0.4",
   custom_unverified: false,
-  source_settings_fingerprint: "source-hash",
+  source_precondition_fingerprint: "source-hash",
+  material_settings_fingerprint: "material-hash",
   precondition_fingerprint: null,
+  identity_fingerprint: {
+    name: "polymaker pla panchroma satin",
+    printer: "bambu lab h2c 0.4 nozzle",
+    nozzle: "0.4",
+  },
   action: "create" as const,
   conflict: null,
 };
@@ -99,7 +105,12 @@ beforeEach(() => {
     printers: [printer],
   });
   mocks.previewNames.mockResolvedValue([
-    { preset_name: operation.preset_name, ams_name: operation.ams_name },
+    {
+      preset_before: operation.preset_name,
+      preset_name: operation.preset_name,
+      ams_before: operation.ams_name,
+      ams_name: operation.ams_name,
+    },
   ]);
   mocks.buildPlan.mockResolvedValue({
     plan: { id: "plan-1", operations: [operation] },
@@ -136,6 +147,7 @@ describe("application workflow", () => {
         source_ids: ["orca:satin"],
         nozzles: [{ printer_id: "official:H2C", diameters: ["0.4"] }],
         destination_account_id: "account-ready",
+        naming: { preset_rules: [], ams_rules: [], overrides: [] },
       }),
     );
 

@@ -1,5 +1,6 @@
 use crate::AppError;
 use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 const PLACEHOLDERS: [&str; 11] = [
@@ -119,7 +120,8 @@ impl NamingTemplate {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ConditionField {
     SourceApp,
     SourceKind,
@@ -140,6 +142,59 @@ impl ConditionField {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RulePatternKind {
+    Wildcard,
+    Regex,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuleConditionSpec {
+    pub field: ConditionField,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplacementRuleSpec {
+    pub kind: RulePatternKind,
+    pub pattern: String,
+    pub replacement: String,
+    pub case_sensitive: bool,
+    pub condition: Option<RuleConditionSpec>,
+}
+
+impl ReplacementRuleSpec {
+    pub fn compile(&self) -> Result<ReplacementRule, AppError> {
+        if self.pattern.is_empty() {
+            return Err(AppError::InvalidProfile(
+                "naming rule pattern is empty".to_owned(),
+            ));
+        }
+        let mut rule = match self.kind {
+            RulePatternKind::Wildcard => {
+                ReplacementRule::wildcard(&self.pattern, &self.replacement, self.case_sensitive)?
+            }
+            RulePatternKind::Regex => ReplacementRule::regex_with_case(
+                &self.pattern,
+                &self.replacement,
+                self.case_sensitive,
+            )?,
+        };
+        if let Some(condition) = &self.condition {
+            if condition.value.trim().is_empty() {
+                return Err(AppError::InvalidProfile(
+                    "naming rule condition value is empty".to_owned(),
+                ));
+            }
+            rule = rule.when(RuleCondition::is(condition.field, &condition.value));
+        }
+        Ok(rule)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuleCondition {
     field: ConditionField,
@@ -157,7 +212,7 @@ impl RuleCondition {
     fn matches(&self, context: &NamingContext) -> bool {
         context
             .value(self.field.key())
-            .is_some_and(|value| value.eq_ignore_ascii_case(&self.value))
+            .is_some_and(|value| normalize_condition(value) == normalize_condition(&self.value))
     }
 }
 
@@ -170,7 +225,17 @@ pub struct ReplacementRule {
 
 impl ReplacementRule {
     pub fn regex(pattern: &str, replacement: &str) -> Result<Self, AppError> {
-        let regex = Regex::new(pattern)
+        Self::regex_with_case(pattern, replacement, true)
+    }
+
+    pub fn regex_with_case(
+        pattern: &str,
+        replacement: &str,
+        case_sensitive: bool,
+    ) -> Result<Self, AppError> {
+        let regex = RegexBuilder::new(pattern)
+            .case_insensitive(!case_sensitive)
+            .build()
             .map_err(|error| AppError::InvalidProfile(format!("invalid regex: {error}")))?;
         Ok(Self {
             regex,
@@ -271,6 +336,14 @@ fn clean_name(source_name: &str, vendor: &str, material: &str) -> String {
         })
         .collect();
     normalize_spaces(&tokens.join(" "))
+}
+
+fn normalize_condition(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn normalize_spaces(value: &str) -> String {

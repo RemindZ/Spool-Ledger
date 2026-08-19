@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   appReducer,
   createInitialState,
+  loadFilterPresets,
+  loadNamingPresets,
+  loadWorkspacePreferences,
+  persistFilterPresets,
+  persistNamingPresets,
+  persistWorkspacePreferences,
   selectedNozzleRequests,
   toggleSetValue,
   removeSetValue,
@@ -93,6 +99,110 @@ describe("application state", () => {
     expect(source).toEqual(new Set(["PLA", "PETG"]));
   });
 
+  it("round-trips reusable naming presets and rejects corrupt storage", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    const presets = [
+      {
+        id: "panchroma-clean",
+        name: "Panchroma clean",
+        preset_template: "{clean_name} - {printer_code}",
+        ams_template: "{vendor} {material} {clean_name}",
+        preset_rules: [],
+        ams_rules: [
+          {
+            id: "rule-1",
+            kind: "wildcard" as const,
+            pattern: "Polymaker PLA *",
+            replacement: "$1",
+            case_sensitive: false,
+            condition: null,
+          },
+        ],
+      },
+    ];
+    persistNamingPresets(storage, presets);
+    expect(loadNamingPresets(storage)).toEqual(presets);
+    values.set("bfm.naming-presets", "not json");
+    expect(loadNamingPresets(storage)).toEqual([]);
+  });
+
+  it("round-trips workspace selections and reusable filter presets", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    let configured = reduce([
+      { type: "sources_loaded", catalogId: "sources:1", sources },
+      { type: "targets_loaded", catalogId: "targets:1", printers },
+      { type: "source_toggled", sourceId: "panchroma-satin" },
+      {
+        type: "nozzle_toggled",
+        printerId: "official:H2C",
+        diameter: "0.4",
+      },
+      {
+        type: "filters_changed",
+        filters: { vendors: new Set(["Polymaker"]), selectedOnly: true },
+      },
+    ]);
+    configured = appReducer(configured, {
+      type: "templates_changed",
+      preset: "{clean_name}",
+      ams: "{vendor} {clean_name}",
+    });
+    persistWorkspacePreferences(storage, configured);
+    const restored = createInitialState(
+      "system",
+      loadWorkspacePreferences(storage),
+    );
+    expect(restored.selectedSourceIds).toEqual(new Set(["panchroma-satin"]));
+    expect(restored.selectedNozzles["official:H2C"]).toEqual(new Set(["0.4"]));
+    expect(restored.filters.vendors).toEqual(new Set(["Polymaker"]));
+    expect(restored.filters.selectedOnly).toBe(true);
+    expect(restored.presetTemplate).toBe("{clean_name}");
+
+    const filterPresets = [
+      { id: "polymaker", name: "Polymaker", filters: configured.filters },
+    ];
+    persistFilterPresets(storage, filterPresets);
+    expect(loadFilterPresets(storage)).toEqual(filterPresets);
+    values.set("bfm.workspace", "{");
+    values.set("bfm.filter-presets", "null");
+    expect(loadWorkspacePreferences(storage)).toBeNull();
+    expect(loadFilterPresets(storage)).toEqual([]);
+  });
+
+  it("prunes persisted selections that no longer exist in refreshed catalogs", () => {
+    let state = createInitialState();
+    state = {
+      ...state,
+      selectedSourceIds: new Set(["panchroma-satin", "gone-source"]),
+      selectedNozzles: {
+        "official:H2C": new Set(["0.4", "1.0"]),
+        "gone-printer": new Set(["0.4"]),
+      },
+    };
+    state = appReducer(state, {
+      type: "sources_loaded",
+      catalogId: "sources:1",
+      sources,
+    });
+    state = appReducer(state, {
+      type: "targets_loaded",
+      catalogId: "targets:1",
+      printers,
+    });
+    expect(state.selectedSourceIds).toEqual(new Set(["panchroma-satin"]));
+    expect(state.selectedNozzles).toEqual({
+      "official:H2C": new Set(["0.4"]),
+    });
+  });
+
   it("represents discovery loading, error, and ready states", () => {
     const loading = reduce([{ type: "discovery_started" }]);
     expect(loading.phase).toBe("discovering");
@@ -165,6 +275,11 @@ describe("application state", () => {
       { type: "source_toggled", sourceId: "panchroma-satin" },
       { type: "nozzle_toggled", printerId: "official:H2C", diameter: "0.4" },
       { type: "account_selected", accountId: "2182110758" },
+      {
+        type: "rules_changed",
+        presetRules: [],
+        amsRules: [],
+      },
       {
         type: "templates_changed",
         preset: "{clean_name}",

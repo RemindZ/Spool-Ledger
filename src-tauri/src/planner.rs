@@ -1,6 +1,8 @@
 use crate::AppError;
 use crate::model::{ProfileId, SourceApp, SourceKind};
-use crate::naming::{NamingContext, NamingTemplate};
+use crate::naming::{
+    NamingContext, NamingTemplate, ReplacementRule, ReplacementRuleSpec, validate_name_component,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
@@ -28,7 +30,7 @@ pub struct MigrationSource {
     pub source_kind: SourceKind,
     pub compatible_printers: BTreeSet<String>,
     pub migration_status: MigrationStatus,
-    pub settings_fingerprint: String,
+    pub source_precondition_fingerprint: String,
     pub existing_filament_id: Option<String>,
 }
 
@@ -49,6 +51,34 @@ pub struct MigrationRequest {
     pub preset_template: String,
     pub ams_template: String,
     pub user_id: String,
+}
+
+pub type MaterialFingerprintIndex = BTreeMap<(ProfileId, String), String>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamingOptions {
+    pub preset_rules: Vec<ReplacementRuleSpec>,
+    pub ams_rules: Vec<ReplacementRuleSpec>,
+    pub overrides: Vec<NameOverride>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NameOverride {
+    pub source_id: ProfileId,
+    pub printer_id: String,
+    pub nozzle: String,
+    pub preset_name: Option<String>,
+    pub ams_name: Option<String>,
+}
+
+impl NameOverride {
+    fn matches(&self, source: &MigrationSource, target: &TargetSelection) -> bool {
+        self.source_id == source.id
+            && self.printer_id == target.printer_id
+            && self.nozzle == target.nozzle
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,7 +171,7 @@ impl IdentityFingerprint {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExistingDestination {
     pub name: String,
-    pub settings_fingerprint: String,
+    pub material_settings_fingerprint: String,
     pub filament_id: String,
     pub printer_preset_name: String,
 }
@@ -218,7 +248,8 @@ pub struct PlanOperation {
     pub printer_preset_name: String,
     pub nozzle: String,
     pub custom_unverified: bool,
-    pub source_settings_fingerprint: String,
+    pub source_precondition_fingerprint: String,
+    pub material_settings_fingerprint: String,
     pub precondition_fingerprint: Option<String>,
     pub identity_fingerprint: IdentityFingerprint,
     pub action: PlanAction,
@@ -238,6 +269,33 @@ impl Planner {
         request: &MigrationRequest,
         destinations: &DestinationIndex,
     ) -> Result<MigrationPlan, AppError> {
+        Self::build_with_context(
+            request,
+            destinations,
+            &NamingOptions::default(),
+            &MaterialFingerprintIndex::default(),
+        )
+    }
+
+    pub fn build_with_naming(
+        request: &MigrationRequest,
+        destinations: &DestinationIndex,
+        naming: &NamingOptions,
+    ) -> Result<MigrationPlan, AppError> {
+        Self::build_with_context(
+            request,
+            destinations,
+            naming,
+            &MaterialFingerprintIndex::default(),
+        )
+    }
+
+    pub fn build_with_context(
+        request: &MigrationRequest,
+        destinations: &DestinationIndex,
+        naming: &NamingOptions,
+        material_fingerprints: &MaterialFingerprintIndex,
+    ) -> Result<MigrationPlan, AppError> {
         if request.sources.is_empty() {
             return Err(AppError::InvalidProfile(
                 "migration has no selected source profiles".to_owned(),
@@ -255,6 +313,8 @@ impl Planner {
         }
         let preset_template = NamingTemplate::parse(&request.preset_template)?;
         let ams_template = NamingTemplate::parse(&request.ams_template)?;
+        let preset_rules = compile_rules(&naming.preset_rules)?;
+        let ams_rules = compile_rules(&naming.ams_rules)?;
         let mut sources = request.sources.iter().collect::<Vec<_>>();
         sources.sort_by(|left, right| (&left.name, &left.id).cmp(&(&right.name, &right.id)));
         let mut targets = request.targets.iter().collect::<Vec<_>>();
@@ -269,12 +329,44 @@ impl Planner {
         for source in sources {
             for target in &targets {
                 let context = naming_context(source, target);
-                let preset_name = preset_template.render(&context)?;
-                let ams_name = ams_template.render(&context)?;
+                let preset_rendered = preset_template.render(&context)?;
+                let ams_rendered = ams_template.render(&context)?;
+                let mut preset_name = NamingTemplate::apply_rules_with_context(
+                    &preset_rendered,
+                    &preset_rules,
+                    &context,
+                )?;
+                let mut ams_name =
+                    NamingTemplate::apply_rules_with_context(&ams_rendered, &ams_rules, &context)?;
+                let overrides = naming
+                    .overrides
+                    .iter()
+                    .filter(|item| item.matches(source, target))
+                    .collect::<Vec<_>>();
+                if overrides.len() > 1 {
+                    return Err(AppError::Conflict(format!(
+                        "multiple naming overrides match {} {} {}",
+                        source.name, target.printer_name, target.nozzle
+                    )));
+                }
+                if let Some(name_override) = overrides.first() {
+                    if let Some(value) = &name_override.preset_name {
+                        validate_name_component(value)?;
+                        preset_name.clone_from(value);
+                    }
+                    if let Some(value) = &name_override.ams_name {
+                        validate_name_component(value)?;
+                        ams_name.clone_from(value);
+                    }
+                }
                 let filament_id = source
                     .existing_filament_id
                     .clone()
                     .unwrap_or_else(|| bambu_filament_id(&ams_name, &request.user_id));
+                let material_settings_fingerprint = material_fingerprints
+                    .get(&(source.id.clone(), target.printer_preset_name.clone()))
+                    .unwrap_or(&source.source_precondition_fingerprint)
+                    .clone();
                 let identity_fingerprint =
                     IdentityFingerprint::new(&ams_name, &target.printer_code, &target.nozzle);
                 let (action, conflict, precondition_fingerprint) = classify_destination(
@@ -282,7 +374,7 @@ impl Planner {
                     &ams_name,
                     &filament_id,
                     &target.printer_preset_name,
-                    &source.settings_fingerprint,
+                    &material_settings_fingerprint,
                 );
                 let operation_key = serde_json::to_vec(&(
                     &source.id,
@@ -291,7 +383,8 @@ impl Planner {
                     &preset_name,
                     &ams_name,
                     &filament_id,
-                    &source.settings_fingerprint,
+                    &source.source_precondition_fingerprint,
+                    &material_settings_fingerprint,
                 ))
                 .map_err(|error| AppError::InvalidProfile(error.to_string()))?;
                 operations.push(PlanOperation {
@@ -306,7 +399,8 @@ impl Planner {
                     printer_preset_name: target.printer_preset_name.clone(),
                     nozzle: target.nozzle.clone(),
                     custom_unverified: target.custom_unverified,
-                    source_settings_fingerprint: source.settings_fingerprint.clone(),
+                    source_precondition_fingerprint: source.source_precondition_fingerprint.clone(),
+                    material_settings_fingerprint,
                     precondition_fingerprint,
                     identity_fingerprint,
                     action,
@@ -325,6 +419,10 @@ impl Planner {
     }
 }
 
+fn compile_rules(specs: &[ReplacementRuleSpec]) -> Result<Vec<ReplacementRule>, AppError> {
+    specs.iter().map(ReplacementRuleSpec::compile).collect()
+}
+
 fn naming_context(source: &MigrationSource, target: &TargetSelection) -> NamingContext {
     NamingContext::new(&source.name, &source.vendor, &source.material)
         .with("family", source.family.clone())
@@ -341,12 +439,12 @@ fn classify_destination(
     name: &str,
     filament_id: &str,
     printer_preset_name: &str,
-    settings_fingerprint: &str,
+    material_settings_fingerprint: &str,
 ) -> (PlanAction, Option<Conflict>, Option<String>) {
     if let Some(existing) = destinations.existing.iter().find(|item| {
         item.printer_preset_name == printer_preset_name && item.name.eq_ignore_ascii_case(name)
     }) {
-        let precondition = Some(existing.settings_fingerprint.clone());
+        let precondition = Some(existing.material_settings_fingerprint.clone());
         if existing.name != name {
             return (
                 PlanAction::Block,
@@ -367,7 +465,7 @@ fn classify_destination(
                 precondition,
             );
         }
-        if existing.settings_fingerprint != settings_fingerprint {
+        if existing.material_settings_fingerprint != material_settings_fingerprint {
             return (
                 PlanAction::Block,
                 Some(Conflict {
@@ -385,7 +483,7 @@ fn classify_destination(
         .iter()
         .find(|item| item.filament_id == filament_id || item.name.eq_ignore_ascii_case(name));
     if let Some(existing) = matching_identity {
-        let precondition = Some(existing.settings_fingerprint.clone());
+        let precondition = Some(existing.material_settings_fingerprint.clone());
         if existing.name != name || existing.filament_id != filament_id {
             return (
                 PlanAction::Block,
@@ -396,7 +494,7 @@ fn classify_destination(
                 precondition,
             );
         }
-        if existing.settings_fingerprint != settings_fingerprint {
+        if existing.material_settings_fingerprint != material_settings_fingerprint {
             return (
                 PlanAction::Block,
                 Some(Conflict {
@@ -446,7 +544,7 @@ fn reject_generated_id_collisions(operations: &mut [PlanOperation]) {
             .map(|index| {
                 (
                     normalize_identity(&operations[*index].ams_name),
-                    operations[*index].source_settings_fingerprint.as_str(),
+                    operations[*index].material_settings_fingerprint.as_str(),
                 )
             })
             .collect();

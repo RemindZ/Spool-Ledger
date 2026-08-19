@@ -1,10 +1,11 @@
 use bambu_filament_migrator::model::{ProfileId, SourceApp, SourceKind};
 use bambu_filament_migrator::naming::{
-    ConditionField, NamingContext, NamingTemplate, ReplacementRule, RuleCondition,
+    ConditionField, NamingContext, NamingTemplate, ReplacementRule, ReplacementRuleSpec,
+    RuleCondition, RuleConditionSpec, RulePatternKind,
 };
 use bambu_filament_migrator::planner::{
     DestinationIndex, ExistingDestination, FilterQuery, IdentityFingerprint, MigrationRequest,
-    MigrationSource, Planner, TargetSelection,
+    MigrationSource, NameOverride, NamingOptions, Planner, TargetSelection,
 };
 
 fn source(name: &str) -> MigrationSource {
@@ -19,7 +20,7 @@ fn source(name: &str) -> MigrationSource {
         variant: "Satin".to_owned(),
         source_app: SourceApp::OrcaSlicer,
         source_kind: SourceKind::FactorySystem,
-        settings_fingerprint: "settings-a".to_owned(),
+        source_precondition_fingerprint: "settings-a".to_owned(),
         existing_filament_id: None,
     }
 }
@@ -83,6 +84,73 @@ fn conditional_rule_only_changes_matching_sources() {
         NamingTemplate::apply_rules_with_context("Panchroma Satin", &[rule], &petg).unwrap(),
         "Panchroma Satin"
     );
+}
+
+#[test]
+fn serialized_rule_specs_preserve_case_and_conditions() {
+    let spec = ReplacementRuleSpec {
+        kind: RulePatternKind::Wildcard,
+        pattern: "Polymaker PLA *".to_owned(),
+        replacement: "$1".to_owned(),
+        case_sensitive: false,
+        condition: Some(RuleConditionSpec {
+            field: ConditionField::Family,
+            value: "Panchroma".to_owned(),
+        }),
+    };
+    let encoded = serde_json::to_value(&spec).unwrap();
+    assert_eq!(encoded["kind"], "wildcard");
+    assert_eq!(encoded["condition"]["field"], "family");
+    let context =
+        NamingContext::new("Panchroma PLA Satin", "Polymaker", "PLA").with("family", "Panchroma");
+    let rule = spec.compile().unwrap();
+    assert_eq!(
+        NamingTemplate::apply_rules_with_context("polymaker pla Satin", &[rule], &context).unwrap(),
+        "Satin"
+    );
+}
+
+#[test]
+fn planner_applies_ordered_rules_then_exact_row_override() {
+    let request = MigrationRequest {
+        sources: vec![source("Panchroma PLA Satin")],
+        targets: vec![target("0.4"), target("0.6")],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "2182110758".to_owned(),
+    };
+    let options = NamingOptions {
+        preset_rules: vec![ReplacementRuleSpec {
+            kind: RulePatternKind::Regex,
+            pattern: "Panchroma".to_owned(),
+            replacement: "PolyTerra".to_owned(),
+            case_sensitive: true,
+            condition: None,
+        }],
+        ams_rules: vec![ReplacementRuleSpec {
+            kind: RulePatternKind::Wildcard,
+            pattern: "Polymaker PLA *".to_owned(),
+            replacement: "$1".to_owned(),
+            case_sensitive: false,
+            condition: Some(RuleConditionSpec {
+                field: ConditionField::SourceApp,
+                value: "orca_slicer".to_owned(),
+            }),
+        }],
+        overrides: vec![NameOverride {
+            source_id: ProfileId::new("Panchroma PLA Satin"),
+            printer_id: "official:H2C".to_owned(),
+            nozzle: "0.6".to_owned(),
+            preset_name: Some("Hand tuned 0.6".to_owned()),
+            ams_name: None,
+        }],
+    };
+    let plan =
+        Planner::build_with_naming(&request, &DestinationIndex::default(), &options).unwrap();
+    assert_eq!(plan.operations[0].preset_name, "PolyTerra Satin - H2C");
+    assert_eq!(plan.operations[0].ams_name, "Panchroma Satin");
+    assert_eq!(plan.operations[1].preset_name, "Hand tuned 0.6");
+    assert_eq!(plan.operations[1].ams_name, "Panchroma Satin");
 }
 
 #[test]
@@ -178,7 +246,7 @@ fn case_only_identity_collision_blocks_but_missing_target_is_created() {
     let preview = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let existing = DestinationIndex::from_existing([ExistingDestination {
         name: preview.operations[0].ams_name.to_ascii_lowercase(),
-        settings_fingerprint: "settings-a".to_owned(),
+        material_settings_fingerprint: "settings-a".to_owned(),
         filament_id: preview.operations[0].filament_id.clone(),
         printer_preset_name: preview.operations[0].printer_preset_name.clone(),
     }]);
@@ -187,7 +255,7 @@ fn case_only_identity_collision_blocks_but_missing_target_is_created() {
 
     let exact = DestinationIndex::from_existing([ExistingDestination {
         name: preview.operations[0].ams_name.clone(),
-        settings_fingerprint: "settings-a".to_owned(),
+        material_settings_fingerprint: "settings-a".to_owned(),
         filament_id: preview.operations[0].filament_id.clone(),
         printer_preset_name: preview.operations[0].printer_preset_name.clone(),
     }]);
@@ -239,7 +307,7 @@ fn equivalent_destination_is_skipped_but_different_settings_conflict() {
     let operation = &preview.operations[0];
     let equivalent = DestinationIndex::from_existing([ExistingDestination {
         name: operation.ams_name.clone(),
-        settings_fingerprint: "settings-a".to_owned(),
+        material_settings_fingerprint: "settings-a".to_owned(),
         filament_id: operation.filament_id.clone(),
         printer_preset_name: operation.printer_preset_name.clone(),
     }]);
@@ -248,7 +316,7 @@ fn equivalent_destination_is_skipped_but_different_settings_conflict() {
 
     let conflict = DestinationIndex::from_existing([ExistingDestination {
         name: operation.ams_name.clone(),
-        settings_fingerprint: "settings-b".to_owned(),
+        material_settings_fingerprint: "settings-b".to_owned(),
         filament_id: operation.filament_id.clone(),
         printer_preset_name: operation.printer_preset_name.clone(),
     }]);

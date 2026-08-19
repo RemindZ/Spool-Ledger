@@ -4,10 +4,15 @@ import type {
   DiscoveryResponse,
   LocalRunResult,
   MigrationPlan,
+  NameOverride,
+  NamePreview,
+  NamingRuleSpec,
   NozzleSelection,
   PrinterTarget,
   RestorePreview,
   RollbackOutcome,
+  SourceApp,
+  SourceKind,
 } from "./types";
 
 interface SourceCatalogResponse {
@@ -28,6 +33,24 @@ interface BuildPlanRequest {
   destination_account_id: string;
   preset_template: string;
   ams_template: string;
+  naming: {
+    preset_rules: NamingRuleSpec[];
+    ams_rules: NamingRuleSpec[];
+    overrides: NameOverride[];
+  };
+}
+
+interface PreviewNameRowInput {
+  source_name: string;
+  vendor: string;
+  material: string;
+  family: string;
+  variant: string;
+  source_app: SourceApp;
+  source_kind: SourceKind;
+  printer: string;
+  printer_code: string;
+  nozzle: string;
 }
 
 export const api = {
@@ -43,11 +66,10 @@ export const api = {
   previewNames: (request: {
     preset_template: string;
     ams_template: string;
-    rows: Array<Record<string, string>>;
-  }) =>
-    invoke<Array<{ preset_name: string; ams_name: string }>>("preview_names", {
-      request,
-    }),
+    preset_rules: NamingRuleSpec[];
+    ams_rules: NamingRuleSpec[];
+    rows: PreviewNameRowInput[];
+  }) => invoke<NamePreview[]>("preview_names", { request }),
   buildPlan: (request: BuildPlanRequest) =>
     invoke<{ plan: MigrationPlan }>("build_plan", { request }),
   executePlan: (planId: string) =>

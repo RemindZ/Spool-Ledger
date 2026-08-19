@@ -7,6 +7,7 @@ use bambu_filament_migrator::profiles::InfoSidecar;
 use bambu_filament_migrator::resolver::{CatalogRoot, ProfileCatalog};
 use bambu_filament_migrator::writer::{
     BambuAdapter, GeneratedArtifactKind, Writer, WriterContext, effective_settings_fingerprint,
+    material_settings_fingerprint,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,7 +47,7 @@ fn request(source_catalog: &ProfileCatalog, nozzles: &[&str]) -> MigrationReques
             source_kind: SourceKind::FactorySystem,
             compatible_printers: BTreeSet::from(["Bambu Lab X1 Carbon".to_owned()]),
             migration_status: MigrationStatus::New,
-            settings_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
+            source_precondition_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
             existing_filament_id: None,
         }],
         targets: nozzles
@@ -166,6 +167,27 @@ fn stages_normal_and_flattened_profiles_for_selected_nozzles_only() {
 }
 
 #[test]
+fn target_owned_fields_do_not_change_material_equivalence() {
+    let (sources, targets) = catalogs();
+    let plan = Planner::build(&request(&sources, &["0.4"]), &DestinationIndex::default()).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let stage = temp.path().join("stage");
+    let writer_context = context(&sources, &targets);
+    Writer::stage(&plan, &writer_context, &stage).unwrap();
+    let mut destination =
+        read_json(&stage.join("filament/base/Northstar PLA Aurora @Bambu Lab H2C 0.4 nozzle.json"));
+    let baseline = material_settings_fingerprint(&destination, &writer_context.adapter).unwrap();
+
+    destination["filament_start_gcode"] = serde_json::json!(["; changed target gcode\n"]);
+    destination["name"] = serde_json::json!("Renamed destination");
+
+    assert_eq!(
+        material_settings_fingerprint(&destination, &writer_context.adapter).unwrap(),
+        baseline
+    );
+}
+
+#[test]
 fn writer_never_invents_cloud_setting_id_and_sidecar_is_exact() {
     let (sources, targets) = catalogs();
     let plan = Planner::build(&request(&sources, &["0.4"]), &DestinationIndex::default()).unwrap();
@@ -223,7 +245,7 @@ fn update_preserves_existing_cloud_identity_in_sidecar() {
 fn source_fingerprint_mismatch_blocks_staging_before_any_files_are_written() {
     let (sources, targets) = catalogs();
     let mut request = request(&sources, &["0.4"]);
-    request.sources[0].settings_fingerprint = "changed-after-plan".to_owned();
+    request.sources[0].source_precondition_fingerprint = "changed-after-plan".to_owned();
     let plan = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let temp = tempfile::tempdir().unwrap();
     let stage = temp.path().join("stage");
@@ -266,7 +288,7 @@ fn unclassified_cross_application_field_blocks_staging() {
             source_kind: SourceKind::FactorySystem,
             compatible_printers: BTreeSet::new(),
             migration_status: MigrationStatus::Unsupported,
-            settings_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
+            source_precondition_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
             existing_filament_id: None,
         }],
         targets: vec![TargetSelection {

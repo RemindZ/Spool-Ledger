@@ -92,12 +92,17 @@ describe("workspace controls", () => {
   it("exposes every filter dimension and emits immutable filter updates", async () => {
     const filters = createInitialState().filters;
     const onFiltersChanged = vi.fn();
+    const onSavePreset = vi.fn();
+    const onLoadPreset = vi.fn();
     render(FilterPanel, {
       props: {
         filters,
         facets: sourceFacets(sources),
+        savedPresets: [{ id: "pla", name: "PLA only", filters }],
         onFiltersChanged,
         onReset: vi.fn(),
+        onSavePreset,
+        onLoadPreset,
       },
     });
 
@@ -120,6 +125,19 @@ describe("workspace controls", () => {
     expect(screen.getByText("Compatible printer")).toBeInTheDocument();
     expect(screen.getByText("Migration status")).toBeInTheDocument();
     expect(screen.getByLabelText("Selected only")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByText("Saved filter presets"));
+    await fireEvent.input(screen.getByLabelText("Filter preset name"), {
+      target: { value: "Panchroma" },
+    });
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Save filter preset" }),
+    );
+    expect(onSavePreset).toHaveBeenCalledWith("Panchroma");
+    await fireEvent.change(screen.getByLabelText("Saved filter presets"), {
+      target: { value: "pla" },
+    });
+    expect(onLoadPreset).toHaveBeenCalledWith("pla");
   });
 
   it("renders dense source provenance, warnings, and selection controls", async () => {

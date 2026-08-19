@@ -1,23 +1,29 @@
 <script lang="ts">
-  import { AlertOctagon, Check, CirclePlus, MinusCircle } from '@lucide/svelte';
-  import type { MigrationPlan, PlanAction } from '../types';
+  import { AlertOctagon, Check, CirclePlus, MinusCircle } from "@lucide/svelte";
+  import type { MigrationPlan, PlanAction } from "../types";
 
-  let { plan }: { plan: MigrationPlan } = $props();
+  let {
+    plan,
+    onOverride = () => {},
+  }: {
+    plan: MigrationPlan;
+    onOverride?: (operationId: string, presetName: string, amsName: string) => void;
+  } = $props();
 
   const actionLabels: Record<PlanAction, string> = {
-    create: 'Create',
-    add_target: 'Add target',
-    update: 'Update',
-    rename: 'Rename',
-    replace: 'Replace',
-    skip: 'Skip',
-    block: 'Blocked',
+    create: "Create",
+    add_target: "Add target",
+    update: "Update",
+    rename: "Rename",
+    replace: "Replace",
+    skip: "Skip",
+    block: "Blocked",
   };
 
   function iconFor(action: PlanAction) {
-    if (action === 'block') return AlertOctagon;
-    if (action === 'skip') return MinusCircle;
-    if (action === 'create' || action === 'add_target') return CirclePlus;
+    if (action === "block") return AlertOctagon;
+    if (action === "skip") return MinusCircle;
+    if (action === "create" || action === "add_target") return CirclePlus;
     return Check;
   }
 </script>
@@ -30,8 +36,8 @@
     </div>
     <div class="plan-metrics">
       <span><strong>{plan.operations.length}</strong> operations</span>
-      <span class:danger={plan.operations.some((item) => item.action === 'block')}
-        ><strong>{plan.operations.filter((item) => item.action === 'block').length}</strong> blocked</span
+      <span class:danger={plan.operations.some((item) => item.action === "block")}
+        ><strong>{plan.operations.filter((item) => item.action === "block").length}</strong> blocked</span
       >
     </div>
   </header>
@@ -49,11 +55,25 @@
       <tbody>
         {#each plan.operations as operation (operation.id)}
           {@const ActionIcon = iconFor(operation.action)}
-          <tr class:blocked={operation.action === 'block'}>
+          <tr class:blocked={operation.action === "block"}>
             <td><strong>{operation.source_name}</strong></td>
-            <td>{operation.preset_name}</td>
             <td>
-              <span>{operation.ams_name}</span>
+              <input
+                class="plan-name-input"
+                aria-label={`Slicing name for ${operation.source_name}`}
+                value={operation.preset_name}
+                onchange={(event) =>
+                  onOverride(operation.id, event.currentTarget.value, operation.ams_name)}
+              />
+            </td>
+            <td>
+              <input
+                class="plan-name-input"
+                aria-label={`AMS name for ${operation.source_name}`}
+                value={operation.ams_name}
+                onchange={(event) =>
+                  onOverride(operation.id, operation.preset_name, event.currentTarget.value)}
+              />
               <code>{operation.filament_id}</code>
             </td>
             <td>{operation.printer_preset_name}</td>

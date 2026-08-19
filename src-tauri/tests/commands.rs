@@ -1,10 +1,14 @@
 use bambu_filament_migrator::commands::{
     ApprovedAccount, ApprovedSourceRoot, ApprovedTargetCatalog, BuildPlanRequest,
     CatalogSourcesRequest, CatalogTargetsRequest, ExecutePlanRequest, MigrationService,
-    NozzleSelection, ServiceConfig,
+    NozzleSelection, PreviewNameRow, PreviewNamesRequest, ServiceConfig,
 };
 use bambu_filament_migrator::discovery::inspect_account;
-use bambu_filament_migrator::model::{SourceApp, SourceKind};
+use bambu_filament_migrator::model::{ProfileId, SourceApp, SourceKind};
+use bambu_filament_migrator::naming::{
+    ConditionField, ReplacementRuleSpec, RuleConditionSpec, RulePatternKind,
+};
+use bambu_filament_migrator::planner::{NameOverride, NamingOptions};
 use bambu_filament_migrator::sync::{Clock, ProcessBackend};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -105,6 +109,7 @@ fn build_plan(fixture: &mut FixtureService) -> String {
             destination_account_id: "2182110758".to_owned(),
             preset_template: "{clean_name} - {printer_code}".to_owned(),
             ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            naming: NamingOptions::default(),
         })
         .unwrap()
         .plan
@@ -161,6 +166,86 @@ fn command_requests_reject_arbitrary_paths_and_unapproved_root_ids() {
 }
 
 #[test]
+fn preview_and_plan_share_rules_conditions_and_row_overrides() {
+    let rule = ReplacementRuleSpec {
+        kind: RulePatternKind::Wildcard,
+        pattern: "Northstar PLA *".to_owned(),
+        replacement: "$1".to_owned(),
+        case_sensitive: false,
+        condition: Some(RuleConditionSpec {
+            field: ConditionField::SourceApp,
+            value: "orca_slicer".to_owned(),
+        }),
+    };
+    let mut fixture = fixture_service(true);
+    let preview = fixture
+        .service
+        .preview_names(PreviewNamesRequest {
+            preset_template: "{clean_name} - {printer_code}".to_owned(),
+            ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            preset_rules: vec![],
+            ams_rules: vec![rule.clone()],
+            rows: vec![PreviewNameRow {
+                source_name: "Northstar PLA Aurora".to_owned(),
+                vendor: "Northstar".to_owned(),
+                material: "PLA".to_owned(),
+                family: "Northstar".to_owned(),
+                variant: "Aurora".to_owned(),
+                source_app: SourceApp::OrcaSlicer,
+                source_kind: SourceKind::FactorySystem,
+                printer: "Bambu Lab H2C".to_owned(),
+                printer_code: "H2C".to_owned(),
+                nozzle: "0.4".to_owned(),
+            }],
+        })
+        .unwrap();
+    assert_eq!(preview[0].ams_before, "Northstar PLA Aurora");
+    assert_eq!(preview[0].ams_name, "Aurora");
+
+    let sources = fixture
+        .service
+        .catalog_sources(CatalogSourcesRequest {
+            root_ids: vec!["source:orca:system".to_owned()],
+        })
+        .unwrap();
+    let targets = fixture
+        .service
+        .catalog_targets(CatalogTargetsRequest {
+            catalog_id: "target:bambu".to_owned(),
+            show_custom: false,
+        })
+        .unwrap();
+    let response = fixture
+        .service
+        .build_plan(BuildPlanRequest {
+            source_catalog_id: sources.catalog_id,
+            source_ids: vec!["Northstar PLA Aurora @BBL X1C".to_owned()],
+            target_catalog_id: targets.catalog_id,
+            nozzles: vec![NozzleSelection {
+                printer_id: "official:H2C".to_owned(),
+                diameters: vec!["0.4".to_owned()],
+            }],
+            destination_account_id: "2182110758".to_owned(),
+            preset_template: "{clean_name} - {printer_code}".to_owned(),
+            ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            naming: NamingOptions {
+                preset_rules: vec![],
+                ams_rules: vec![rule],
+                overrides: vec![NameOverride {
+                    source_id: ProfileId::new("Northstar PLA Aurora @BBL X1C"),
+                    printer_id: "official:H2C".to_owned(),
+                    nozzle: "0.4".to_owned(),
+                    preset_name: Some("Aurora tuned H2C".to_owned()),
+                    ams_name: None,
+                }],
+            },
+        })
+        .unwrap();
+    assert_eq!(response.plan.operations[0].preset_name, "Aurora tuned H2C");
+    assert_eq!(response.plan.operations[0].ams_name, "Aurora");
+}
+
+#[test]
 fn ineligible_destination_account_is_rejected_before_plan_creation() {
     let mut fixture = fixture_service(false);
     let sources = fixture
@@ -189,6 +274,7 @@ fn ineligible_destination_account_is_rejected_before_plan_creation() {
             destination_account_id: "2182110758".to_owned(),
             preset_template: "{clean_name} - {printer_code}".to_owned(),
             ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            naming: NamingOptions::default(),
         })
         .unwrap_err();
     assert!(error.to_string().contains("eligible"));
@@ -237,6 +323,106 @@ fn stale_plan_and_changed_source_hash_are_rejected_without_destination_writes() 
         std::fs::read(fixture.destination.join("filament/existing.json")).unwrap(),
         before
     );
+}
+
+#[test]
+fn generated_flat_destination_is_semantically_equivalent_on_second_plan() {
+    let mut fixture = fixture_service(true);
+    let plan_id = build_plan(&mut fixture);
+    let mut process = FakeProcess {
+        checks: VecDeque::from([vec![]]),
+    };
+    let mut clock = FakeClock::default();
+    fixture
+        .service
+        .execute_plan_with(ExecutePlanRequest { plan_id }, &mut process, &mut clock)
+        .unwrap();
+
+    let sources = fixture
+        .service
+        .catalog_sources(CatalogSourcesRequest {
+            root_ids: vec!["source:orca:system".to_owned()],
+        })
+        .unwrap();
+    let targets = fixture
+        .service
+        .catalog_targets(CatalogTargetsRequest {
+            catalog_id: "target:bambu".to_owned(),
+            show_custom: false,
+        })
+        .unwrap();
+    let second = fixture
+        .service
+        .build_plan(BuildPlanRequest {
+            source_catalog_id: sources.catalog_id,
+            source_ids: vec!["Northstar PLA Aurora @BBL X1C".to_owned()],
+            target_catalog_id: targets.catalog_id,
+            nozzles: vec![NozzleSelection {
+                printer_id: "official:H2C".to_owned(),
+                diameters: vec!["0.4".to_owned()],
+            }],
+            destination_account_id: "2182110758".to_owned(),
+            preset_template: "{clean_name} - {printer_code}".to_owned(),
+            ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            naming: NamingOptions::default(),
+        })
+        .unwrap();
+    assert_eq!(second.plan.operations.len(), 1);
+    assert_eq!(second.plan.operations[0].action.as_str(), "skip");
+}
+
+#[test]
+fn changed_material_setting_in_flat_destination_blocks_second_plan() {
+    let mut fixture = fixture_service(true);
+    let plan_id = build_plan(&mut fixture);
+    let mut process = FakeProcess {
+        checks: VecDeque::from([vec![]]),
+    };
+    let mut clock = FakeClock::default();
+    fixture
+        .service
+        .execute_plan_with(ExecutePlanRequest { plan_id }, &mut process, &mut clock)
+        .unwrap();
+
+    let destination = fixture
+        .destination
+        .join("filament/base/Northstar PLA Aurora @Bambu Lab H2C 0.4 nozzle.json");
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&destination).unwrap()).unwrap();
+    value["filament_cost"] = serde_json::json!(["999"]);
+    std::fs::write(&destination, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+
+    let sources = fixture
+        .service
+        .catalog_sources(CatalogSourcesRequest {
+            root_ids: vec!["source:orca:system".to_owned()],
+        })
+        .unwrap();
+    let targets = fixture
+        .service
+        .catalog_targets(CatalogTargetsRequest {
+            catalog_id: "target:bambu".to_owned(),
+            show_custom: false,
+        })
+        .unwrap();
+    let second = fixture
+        .service
+        .build_plan(BuildPlanRequest {
+            source_catalog_id: sources.catalog_id,
+            source_ids: vec!["Northstar PLA Aurora @BBL X1C".to_owned()],
+            target_catalog_id: targets.catalog_id,
+            nozzles: vec![NozzleSelection {
+                printer_id: "official:H2C".to_owned(),
+                diameters: vec!["0.4".to_owned()],
+            }],
+            destination_account_id: "2182110758".to_owned(),
+            preset_template: "{clean_name} - {printer_code}".to_owned(),
+            ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            naming: NamingOptions::default(),
+        })
+        .unwrap();
+    assert_eq!(second.plan.operations.len(), 1);
+    assert_eq!(second.plan.operations[0].action.as_str(), "block");
 }
 
 #[test]

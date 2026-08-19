@@ -1,19 +1,36 @@
 <script lang="ts">
-  import { RotateCcw, Search, SlidersHorizontal } from '@lucide/svelte';
-  import { toggleSetValue, type FilterFacet, type SourceFilters, type SourceFacets } from '../state';
+  import { RotateCcw, Save, Search, SlidersHorizontal, Trash2 } from '@lucide/svelte';
+  import { toggleSetValue, type FilterFacet, type FilterPreset, type SourceFilters, type SourceFacets } from '../state';
   import type { MigrationStatus, SourceApp, SourceKind } from '../types';
 
   let {
     filters,
     facets,
+    savedPresets = [],
     onFiltersChanged,
     onReset,
+    onSavePreset = () => {},
+    onLoadPreset = () => {},
+    onDeletePreset = () => {},
   }: {
     filters: SourceFilters;
     facets: SourceFacets;
+    savedPresets?: FilterPreset[];
     onFiltersChanged: (filters: Partial<SourceFilters>) => void;
     onReset: () => void;
+    onSavePreset?: (name: string) => void;
+    onLoadPreset?: (id: string) => void;
+    onDeletePreset?: (id: string) => void;
   } = $props();
+
+  let presetName = $state('');
+
+  function savePreset() {
+    const name = presetName.trim();
+    if (!name) return;
+    onSavePreset(name);
+    presetName = '';
+  }
 
   const sourceApps: Array<{ value: SourceApp; label: string }> = [
     { value: 'orca_slicer', label: 'OrcaSlicer' },
@@ -104,4 +121,16 @@
   </fieldset>
 
   <label class="selected-only"><input type="checkbox" aria-label="Selected only" checked={filters.selectedOnly} onchange={(event) => onFiltersChanged({ selectedOnly: event.currentTarget.checked })} /><span>Selected only</span></label>
+
+  <details class="filter-presets">
+    <summary>Saved filter presets</summary>
+    <div class="filter-preset-controls">
+      <label><span>Preset name</span><input aria-label="Filter preset name" bind:value={presetName} placeholder="Panchroma" /></label>
+      <button class="secondary-button" type="button" aria-label="Save filter preset" onclick={savePreset}><Save size={13} /> Save</button>
+      {#if savedPresets.length}
+        <label><span>Saved presets</span><select aria-label="Saved filter presets" onchange={(event) => event.currentTarget.value && onLoadPreset(event.currentTarget.value)}><option value="">Choose preset</option>{#each savedPresets as preset (preset.id)}<option value={preset.id}>{preset.name}</option>{/each}</select></label>
+        <div class="filter-preset-list">{#each savedPresets as preset (preset.id)}<button type="button" aria-label={`Delete filter preset ${preset.name}`} onclick={() => onDeletePreset(preset.id)}><Trash2 size={12} /> {preset.name}</button>{/each}</div>
+      {/if}
+    </div>
+  </details>
 </aside>

@@ -172,6 +172,73 @@ pub fn effective_settings_fingerprint(profile: &EffectiveProfile) -> Result<Stri
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
+pub fn generated_material_settings_fingerprint(
+    source: &EffectiveProfile,
+    target: &EffectiveProfile,
+    adapter: &BambuAdapter,
+) -> Result<String, AppError> {
+    validate_effective_fields(source, adapter, true)?;
+    validate_effective_fields(target, adapter, false)?;
+    let values = transfer_values(source, target, adapter)?;
+    material_settings_fingerprint_from_map(&values, adapter)
+}
+
+pub fn material_settings_fingerprint(
+    value: &Value,
+    adapter: &BambuAdapter,
+) -> Result<String, AppError> {
+    let object = value.as_object().ok_or_else(|| {
+        AppError::UnsupportedSchema("destination filament profile is not an object".to_owned())
+    })?;
+    adapter
+        .field_policy
+        .validate_cross_application(object.keys().map(String::as_str))?;
+    material_settings_fingerprint_from_map(object, adapter)
+}
+
+fn material_settings_fingerprint_from_map(
+    values: &Map<String, Value>,
+    adapter: &BambuAdapter,
+) -> Result<String, AppError> {
+    let canonical: BTreeMap<_, _> = values
+        .iter()
+        .filter(|(key, _)| {
+            matches!(
+                adapter.field_policy.classify(key),
+                Some(FieldClass::SourceMaterial | FieldClass::Mapped)
+            )
+        })
+        .collect();
+    let bytes = serde_json::to_vec(&canonical)
+        .map_err(|error| AppError::InvalidProfile(error.to_string()))?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+fn validate_effective_fields(
+    profile: &EffectiveProfile,
+    adapter: &BambuAdapter,
+    reject_source_fields: bool,
+) -> Result<(), AppError> {
+    adapter
+        .field_policy
+        .validate_cross_application(profile.values.keys().map(String::as_str))?;
+    if reject_source_fields {
+        let rejected: Vec<_> = profile
+            .values
+            .keys()
+            .filter(|key| adapter.field_policy.classify(key) == Some(FieldClass::Reject))
+            .cloned()
+            .collect();
+        if !rejected.is_empty() {
+            return Err(AppError::UnsupportedSchema(format!(
+                "rejected source fields: {}",
+                rejected.join(", ")
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 struct PendingArtifact {
     kind: GeneratedArtifactKind,
@@ -218,24 +285,9 @@ fn resolve_and_validate_sources(
             continue;
         }
         let effective = context.sources.resolve_name(&operation.source_id.0)?;
-        context
-            .adapter
-            .field_policy
-            .validate_cross_application(effective.values.keys().map(String::as_str))?;
-        let rejected: Vec<_> = effective
-            .values
-            .keys()
-            .filter(|key| context.adapter.field_policy.classify(key) == Some(FieldClass::Reject))
-            .cloned()
-            .collect();
-        if !rejected.is_empty() {
-            return Err(AppError::UnsupportedSchema(format!(
-                "rejected source fields: {}",
-                rejected.join(", ")
-            )));
-        }
+        validate_effective_fields(&effective, &context.adapter, true)?;
         let actual = effective_settings_fingerprint(&effective)?;
-        if actual != operation.source_settings_fingerprint {
+        if actual != operation.source_precondition_fingerprint {
             return Err(AppError::Conflict(format!(
                 "source fingerprint changed for {}",
                 operation.source_id

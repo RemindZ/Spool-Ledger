@@ -1,21 +1,23 @@
 use crate::AppError;
 use crate::discovery::{AccountRoot, DiscoveryService, DiscoverySnapshot, inspect_account};
 use crate::model::{AccountEligibility, PrinterTarget, ProfileId, SourceApp, SourceKind};
-use crate::naming::{NamingContext, NamingTemplate};
+use crate::naming::{NamingContext, NamingTemplate, ReplacementRuleSpec};
 use crate::planner::{
-    DestinationIndex, MigrationPlan, MigrationRequest, MigrationSource, MigrationStatus,
-    PlanAction, Planner, TargetSelection,
+    DestinationIndex, MaterialFingerprintIndex, MigrationPlan, MigrationRequest, MigrationSource,
+    MigrationStatus, NamingOptions, PlanAction, Planner, TargetSelection,
 };
 use crate::receipt::{ReceiptState, RunReceipt};
 use crate::resolver::{CatalogRoot, ProfileCatalog};
 use crate::sync::{Clock, ProcessBackend, ProcessController, SystemClock, SystemProcessBackend};
 use crate::targets::TargetCatalog;
 use crate::transaction::{RestorePreview, RollbackOutcome, Transaction, TransactionOptions};
-use crate::writer::{BambuAdapter, Writer, WriterContext, effective_settings_fingerprint};
+use crate::writer::{
+    BambuAdapter, Writer, WriterContext, effective_settings_fingerprint,
+    generated_material_settings_fingerprint, material_settings_fingerprint,
+};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::Digest;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -144,6 +146,20 @@ fn source_app_id(value: SourceApp) -> &'static str {
     }
 }
 
+fn source_app_label(value: SourceApp) -> &'static str {
+    match value {
+        SourceApp::OrcaSlicer => "OrcaSlicer",
+        SourceApp::BambuStudio => "Bambu Studio",
+    }
+}
+
+fn source_kind_label(value: SourceKind) -> &'static str {
+    match value {
+        SourceKind::FactorySystem => "Factory/System",
+        SourceKind::UserCustom => "User/Custom",
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoveryResponse {
     pub source_root_ids: Vec<String>,
@@ -208,6 +224,8 @@ pub struct BuildPlanRequest {
     pub destination_account_id: String,
     pub preset_template: String,
     pub ams_template: String,
+    #[serde(default)]
+    pub naming: NamingOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,16 +252,23 @@ pub struct LocalRunResult {
 pub struct PreviewNamesRequest {
     pub preset_template: String,
     pub ams_template: String,
+    #[serde(default)]
+    pub preset_rules: Vec<ReplacementRuleSpec>,
+    #[serde(default)]
+    pub ams_rules: Vec<ReplacementRuleSpec>,
     pub rows: Vec<PreviewNameRow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PreviewNameRow {
     pub source_name: String,
     pub vendor: String,
     pub material: String,
     pub family: String,
     pub variant: String,
+    pub source_app: SourceApp,
+    pub source_kind: SourceKind,
     pub printer: String,
     pub printer_code: String,
     pub nozzle: String,
@@ -251,7 +276,9 @@ pub struct PreviewNameRow {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreviewNameResult {
+    pub preset_before: String,
     pub preset_name: String,
+    pub ams_before: String,
     pub ams_name: String,
 }
 
@@ -275,6 +302,7 @@ struct AmsVerificationRecord {
 struct CachedSources {
     roots: Vec<ApprovedSourceRoot>,
     sources: BTreeMap<String, MigrationSource>,
+    catalog: ProfileCatalog,
 }
 
 struct CachedTargets {
@@ -399,15 +427,21 @@ impl MigrationService {
                     source_kind: record.source_kind,
                     compatible_printers,
                     migration_status: MigrationStatus::New,
-                    settings_fingerprint: effective_settings_fingerprint(&effective)?,
+                    source_precondition_fingerprint: effective_settings_fingerprint(&effective)?,
                     existing_filament_id,
                 },
             );
         }
         let response_sources = sources.values().map(CatalogSource::from).collect();
         let catalog_id = format!("sources:{}", Uuid::new_v4().simple());
-        self.source_catalogs
-            .insert(catalog_id.clone(), CachedSources { roots, sources });
+        self.source_catalogs.insert(
+            catalog_id.clone(),
+            CachedSources {
+                roots,
+                sources,
+                catalog,
+            },
+        );
         self.plans.clear();
         Ok(SourceCatalogResponse {
             catalog_id,
@@ -520,33 +554,51 @@ impl MigrationService {
             ams_template: request.ams_template,
             user_id: account.account.id.clone(),
         };
-        let printer_codes: BTreeMap<_, _> = migration_request
-            .targets
-            .iter()
-            .map(|target| (target.printer_id.clone(), target.printer_code.clone()))
-            .collect();
-        let destinations = destination_index(&account.account.path)?;
-        let plan = Planner::build(&migration_request, &destinations)?;
-        let materials: BTreeMap<_, _> = migration_request
-            .sources
-            .iter()
-            .map(|source| (source.id.clone(), source.material.clone()))
-            .collect();
+        let adapter = BambuAdapter::v2_0_0_56();
+        let mut material_fingerprints = MaterialFingerprintIndex::new();
+        let mut target_profile_names = BTreeMap::new();
+        for source in &migration_request.sources {
+            let source_effective = source_cache.catalog.resolve_name(&source.id.0)?;
+            for target in &migration_request.targets {
+                let candidate = format!("Generic {} @BBL {}", source.material, target.printer_code);
+                let target_effective =
+                    target_cache
+                        .profiles
+                        .resolve_name(&candidate)
+                        .map_err(|_| {
+                            AppError::UnsupportedSchema(format!(
+                                "target template is missing: {candidate}"
+                            ))
+                        })?;
+                let key = (source.id.clone(), target.printer_preset_name.clone());
+                material_fingerprints.insert(
+                    key.clone(),
+                    generated_material_settings_fingerprint(
+                        &source_effective,
+                        &target_effective,
+                        &adapter,
+                    )?,
+                );
+                target_profile_names.insert(key, candidate);
+            }
+        }
+        let destinations = destination_index(&account.account.path, &adapter)?;
+        let plan = Planner::build_with_context(
+            &migration_request,
+            &destinations,
+            &request.naming,
+            &material_fingerprints,
+        )?;
         let mut target_profiles = BTreeMap::new();
         for operation in &plan.operations {
-            let material = materials.get(&operation.source_id).ok_or_else(|| {
-                AppError::InvalidProfile("planned source material disappeared".to_owned())
+            let key = (
+                operation.source_id.clone(),
+                operation.printer_preset_name.clone(),
+            );
+            let candidate = target_profile_names.get(&key).ok_or_else(|| {
+                AppError::InvalidProfile("planned target template disappeared".to_owned())
             })?;
-            let printer_code = printer_codes.get(&operation.printer_id).ok_or_else(|| {
-                AppError::InvalidProfile("planned target printer disappeared".to_owned())
-            })?;
-            let candidate = format!("Generic {material} @BBL {printer_code}");
-            if target_cache.profiles.profile(&candidate).is_none() {
-                return Err(AppError::UnsupportedSchema(format!(
-                    "target template is missing: {candidate}"
-                )));
-            }
-            target_profiles.insert(operation.id.clone(), candidate);
+            target_profiles.insert(operation.id.clone(), candidate.clone());
         }
         self.plans.insert(
             plan.id.clone(),
@@ -699,6 +751,16 @@ impl MigrationService {
     ) -> Result<Vec<PreviewNameResult>, AppError> {
         let preset = NamingTemplate::parse(request.preset_template)?;
         let ams = NamingTemplate::parse(request.ams_template)?;
+        let preset_rules = request
+            .preset_rules
+            .iter()
+            .map(ReplacementRuleSpec::compile)
+            .collect::<Result<Vec<_>, _>>()?;
+        let ams_rules = request
+            .ams_rules
+            .iter()
+            .map(ReplacementRuleSpec::compile)
+            .collect::<Result<Vec<_>, _>>()?;
         request
             .rows
             .into_iter()
@@ -706,12 +768,26 @@ impl MigrationService {
                 let context = NamingContext::new(&row.source_name, &row.vendor, &row.material)
                     .with("family", row.family)
                     .with("variant", row.variant)
+                    .with("source_app", source_app_label(row.source_app))
+                    .with("source_kind", source_kind_label(row.source_kind))
                     .with("printer", row.printer)
                     .with("printer_code", row.printer_code)
                     .with("nozzle", row.nozzle);
+                let preset_before = preset.render(&context)?;
+                let ams_before = ams.render(&context)?;
                 Ok(PreviewNameResult {
-                    preset_name: preset.render(&context)?,
-                    ams_name: ams.render(&context)?,
+                    preset_name: NamingTemplate::apply_rules_with_context(
+                        &preset_before,
+                        &preset_rules,
+                        &context,
+                    )?,
+                    ams_name: NamingTemplate::apply_rules_with_context(
+                        &ams_before,
+                        &ams_rules,
+                        &context,
+                    )?,
+                    preset_before,
+                    ams_before,
                 })
             })
             .collect()
@@ -895,7 +971,10 @@ fn family_variant(display: &str, vendor: &str, material: &str) -> (String, Strin
     (family, remainder.to_owned())
 }
 
-fn destination_index(account_root: &Path) -> Result<DestinationIndex, AppError> {
+fn destination_index(
+    account_root: &Path,
+    adapter: &BambuAdapter,
+) -> Result<DestinationIndex, AppError> {
     let base = account_root.join("filament/base");
     if !base.is_dir() {
         return Ok(DestinationIndex::default());
@@ -938,7 +1017,7 @@ fn destination_index(account_root: &Path) -> Result<DestinationIndex, AppError> 
             .to_owned();
         existing.push(crate::planner::ExistingDestination {
             name: ams_name,
-            settings_fingerprint: format!("{:x}", sha2::Sha256::digest(&bytes)),
+            material_settings_fingerprint: material_settings_fingerprint(&value, adapter)?,
             filament_id,
             printer_preset_name: printer.to_owned(),
         });

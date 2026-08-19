@@ -14,8 +14,14 @@
     activeFilterChips,
     appReducer,
     createInitialState,
+    loadFilterPresets,
+    loadNamingPresets,
     loadTheme,
+    loadWorkspacePreferences,
+    persistFilterPresets,
+    persistNamingPresets,
     persistTheme,
+    persistWorkspacePreferences,
     removeSetValue,
     resetFilters,
     selectedNozzleRequests,
@@ -24,17 +30,30 @@
     type ActiveFilterChip,
     type AppAction,
     type AppState,
+    type FilterPreset,
     type SourceFilters,
     type Theme,
   } from './lib/state';
-  import type { RestorePreview, RollbackOutcome } from './lib/types';
+  import type {
+    NameOverride,
+    NamePreview,
+    NamingPreset,
+    NamingRule,
+    NamingRuleSpec,
+    RestorePreview,
+    RollbackOutcome,
+  } from "./lib/types";
 
   const storage = typeof localStorage === 'undefined'
     ? { getItem: () => null, setItem: () => undefined }
     : localStorage;
 
-  let appState: AppState = $state(createInitialState(loadTheme(storage)));
-  let namePreview = $state<{ preset_name: string; ams_name: string } | null>(null);
+  let appState: AppState = $state(
+    createInitialState(loadTheme(storage), loadWorkspacePreferences(storage)),
+  );
+  let savedNamingPresets = $state<NamingPreset[]>(loadNamingPresets(storage));
+  let savedFilterPresets = $state<FilterPreset[]>(loadFilterPresets(storage));
+  let namePreview = $state<NamePreview | null>(null);
   let namePreviewError = $state<string | null>(null);
   let restorePreview = $state<RestorePreview | null>(null);
   let rollback = $state<RollbackOutcome | null>(null);
@@ -55,6 +74,7 @@
 
   function dispatch(action: AppAction) {
     appState = appReducer(appState, action);
+    persistWorkspacePreferences(storage, appState);
   }
 
   function errorMessage(error: unknown): string {
@@ -109,8 +129,48 @@
     changeFilters({ [chip.dimension]: removeSetValue(current, chip.value as never) });
   }
 
-  async function updatePreview(preset: string, ams: string) {
-    dispatch({ type: 'templates_changed', preset, ams });
+  function ruleSpecs(rules: NamingRule[]): NamingRuleSpec[] {
+    return rules.map((rule) => ({
+      kind: rule.kind,
+      pattern: rule.pattern,
+      replacement: rule.replacement,
+      case_sensitive: rule.case_sensitive,
+      condition: rule.condition,
+    }));
+  }
+
+  function presetId(name: string): string {
+    return name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'preset';
+  }
+
+  function cloneFilters(filters: SourceFilters): SourceFilters {
+    return structuredClone(filters);
+  }
+
+  function saveFilterPreset(name: string) {
+    const id = presetId(name);
+    const preset: FilterPreset = { id, name, filters: cloneFilters(appState.filters) };
+    savedFilterPresets = [...savedFilterPresets.filter((item) => item.id !== id), preset]
+      .sort((left, right) => left.name.localeCompare(right.name));
+    persistFilterPresets(storage, savedFilterPresets);
+  }
+
+  function loadFilterPreset(id: string) {
+    const preset = savedFilterPresets.find((item) => item.id === id);
+    if (preset) changeFilters(cloneFilters(preset.filters));
+  }
+
+  function deleteFilterPreset(id: string) {
+    savedFilterPresets = savedFilterPresets.filter((item) => item.id !== id);
+    persistFilterPresets(storage, savedFilterPresets);
+  }
+
+  async function refreshPreview(
+    preset = appState.presetTemplate,
+    ams = appState.amsTemplate,
+    presetRules = appState.presetRules,
+    amsRules = appState.amsRules,
+  ) {
     namePreviewError = null;
     const source = appState.sources.find((item) => appState.selectedSourceIds.has(item.id));
     const target = appState.printers.find((item) => appState.selectedNozzles[item.id]?.size);
@@ -123,6 +183,8 @@
       const rows = await api.previewNames({
         preset_template: preset,
         ams_template: ams,
+        preset_rules: ruleSpecs(presetRules),
+        ams_rules: ruleSpecs(amsRules),
         rows: [{
           source_name: source.name,
           vendor: source.vendor,
@@ -142,7 +204,73 @@
     }
   }
 
-  async function buildPlan() {
+  function changeTemplates(preset: string, ams: string) {
+    const rebuild = appState.plan !== null;
+    dispatch({ type: 'templates_changed', preset, ams });
+    void refreshPreview(preset, ams);
+    if (rebuild) void buildPlan();
+  }
+
+  function changeRules(presetRules: NamingRule[], amsRules: NamingRule[]) {
+    const rebuild = appState.plan !== null;
+    dispatch({ type: 'rules_changed', presetRules, amsRules });
+    void refreshPreview(appState.presetTemplate, appState.amsTemplate, presetRules, amsRules);
+    if (rebuild) void buildPlan({ presetRules, amsRules });
+  }
+
+  function saveNamingPreset(name: string) {
+    const id = presetId(name);
+    const preset: NamingPreset = {
+      id,
+      name,
+      preset_template: appState.presetTemplate,
+      ams_template: appState.amsTemplate,
+      preset_rules: appState.presetRules,
+      ams_rules: appState.amsRules,
+    };
+    savedNamingPresets = [...savedNamingPresets.filter((item) => item.id !== id), preset]
+      .sort((left, right) => left.name.localeCompare(right.name));
+    persistNamingPresets(storage, savedNamingPresets);
+  }
+
+  function loadNamingPreset(id: string) {
+    const preset = savedNamingPresets.find((item) => item.id === id);
+    if (!preset) return;
+    const rebuild = appState.plan !== null;
+    dispatch({
+      type: 'templates_changed',
+      preset: preset.preset_template,
+      ams: preset.ams_template,
+    });
+    dispatch({
+      type: 'rules_changed',
+      presetRules: preset.preset_rules,
+      amsRules: preset.ams_rules,
+    });
+    void refreshPreview(
+      preset.preset_template,
+      preset.ams_template,
+      preset.preset_rules,
+      preset.ams_rules,
+    );
+    if (rebuild) {
+      void buildPlan({
+        presetRules: preset.preset_rules,
+        amsRules: preset.ams_rules,
+      });
+    }
+  }
+
+  function deleteNamingPreset(id: string) {
+    savedNamingPresets = savedNamingPresets.filter((item) => item.id !== id);
+    persistNamingPresets(storage, savedNamingPresets);
+  }
+
+  async function buildPlan(options: {
+    presetRules?: NamingRule[];
+    amsRules?: NamingRule[];
+    overrides?: NameOverride[];
+  } = {}) {
     if (!hasInputs || !appState.sourceCatalogId || !appState.targetCatalogId || !appState.selectedAccountId) return;
     dispatch({ type: 'planning_started' });
     try {
@@ -154,11 +282,35 @@
         destination_account_id: appState.selectedAccountId,
         preset_template: appState.presetTemplate,
         ams_template: appState.amsTemplate,
+        naming: {
+          preset_rules: ruleSpecs(options.presetRules ?? appState.presetRules),
+          ams_rules: ruleSpecs(options.amsRules ?? appState.amsRules),
+          overrides: options.overrides ?? appState.nameOverrides,
+        },
       });
       dispatch({ type: 'plan_built', plan: response.plan });
     } catch (error) {
       dispatch({ type: 'failed', message: errorMessage(error) });
     }
+  }
+
+  function overrideOperation(operationId: string, presetName: string, amsName: string) {
+    const operation = appState.plan?.operations.find((item) => item.id === operationId);
+    if (!operation) return;
+    const next: NameOverride = {
+      source_id: operation.source_id,
+      printer_id: operation.printer_id,
+      nozzle: operation.nozzle,
+      preset_name: presetName === operation.preset_name ? null : presetName,
+      ams_name: amsName === operation.ams_name ? null : amsName,
+    };
+    const overrides = [
+      ...appState.nameOverrides.filter((item) =>
+        item.source_id !== next.source_id || item.printer_id !== next.printer_id || item.nozzle !== next.nozzle),
+      next,
+    ];
+    dispatch({ type: 'name_overrides_changed', overrides });
+    void buildPlan({ overrides });
   }
 
   async function executePlan() {
@@ -253,7 +405,16 @@
   {:else if appState.discovery}
     <main class="workspace-shell">
       <div class="workspace-grid">
-        <FilterPanel filters={appState.filters} {facets} onFiltersChanged={changeFilters} onReset={() => changeFilters(resetFilters())} />
+        <FilterPanel
+          filters={appState.filters}
+          {facets}
+          savedPresets={savedFilterPresets}
+          onFiltersChanged={changeFilters}
+          onReset={() => changeFilters(resetFilters())}
+          onSavePreset={saveFilterPreset}
+          onLoadPreset={loadFilterPreset}
+          onDeletePreset={deleteFilterPreset}
+        />
 
         <div class="source-workbench">
           {#if filterChips.length}
@@ -265,7 +426,10 @@
             sources={shownSources}
             selectedIds={appState.selectedSourceIds}
             totalCount={appState.sources.length}
-            onToggle={(sourceId) => dispatch({ type: 'source_toggled', sourceId })}
+            onToggle={(sourceId) => {
+              dispatch({ type: 'source_toggled', sourceId });
+              void refreshPreview();
+            }}
             onSelectVisible={(selected) => dispatch({ type: 'select_visible', selected })}
             onClearSelection={() => dispatch({ type: 'clear_selection' })}
           />
@@ -282,21 +446,34 @@
             printers={appState.printers}
             selectedNozzles={appState.selectedNozzles}
             showCustom={appState.showCustomPrinters}
-            onNozzleToggle={(printerId, diameter) => dispatch({ type: 'nozzle_toggled', printerId, diameter })}
-            onSelectAll={(printerId, selected) => dispatch({ type: 'select_printer_nozzles', printerId, selected })}
+            onNozzleToggle={(printerId, diameter) => {
+              dispatch({ type: 'nozzle_toggled', printerId, diameter });
+              void refreshPreview();
+            }}
+            onSelectAll={(printerId, selected) => {
+              dispatch({ type: 'select_printer_nozzles', printerId, selected });
+              void refreshPreview();
+            }}
           />
           <NamingPanel
             presetTemplate={appState.presetTemplate}
             amsTemplate={appState.amsTemplate}
+            presetRules={appState.presetRules}
+            amsRules={appState.amsRules}
+            savedPresets={savedNamingPresets}
             preview={namePreview}
             error={namePreviewError}
-            onTemplatesChanged={(preset, ams) => void updatePreview(preset, ams)}
+            onTemplatesChanged={changeTemplates}
+            onRulesChanged={changeRules}
+            onSavePreset={saveNamingPreset}
+            onLoadPreset={loadNamingPreset}
+            onDeletePreset={deleteNamingPreset}
           />
         </aside>
       </div>
 
       {#if appState.plan}
-        <PlanTable plan={appState.plan} />
+        <PlanTable plan={appState.plan} onOverride={overrideOperation} />
       {/if}
 
       {#if appState.plan && (appState.phase === 'executing' || Object.keys(appState.progress).length)}
@@ -315,7 +492,7 @@
       </div>
       <div class="dock-counts"><span>{appState.selectedSourceIds.size} sources</span><span>{nozzleRequests.reduce((sum, item) => sum + item.diameters.length, 0)} nozzles</span></div>
       {#if !appState.plan}
-        <div class="dock-action"><span>{hasInputs ? 'Ready to freeze a deterministic preview' : 'Select at least one source and one nozzle'}</span><button class="primary-button" type="button" disabled={!hasInputs || appState.phase === 'planning'} onclick={buildPlan}>{appState.phase === 'planning' ? 'Building plan…' : 'Build migration plan'}</button></div>
+        <div class="dock-action"><span>{hasInputs ? 'Ready to freeze a deterministic preview' : 'Select at least one source and one nozzle'}</span><button class="primary-button" type="button" disabled={!hasInputs || appState.phase === 'planning'} onclick={() => void buildPlan()}>{appState.phase === 'planning' ? 'Building plan…' : 'Build migration plan'}</button></div>
       {:else if !appState.result}
         <div class="dock-action"><span>{planBlocked ? 'Resolve blocked conflicts before writing' : `${appState.plan.operations.length} operations reviewed`}</span><button class="primary-button" type="button" disabled={planBlocked || appState.phase === 'executing'} onclick={executePlan}>{appState.phase === 'executing' ? 'Committing…' : 'Commit migration'}</button></div>
       {:else}
