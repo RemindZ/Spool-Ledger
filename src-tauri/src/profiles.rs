@@ -35,6 +35,16 @@ impl SyncAction {
             ))),
         }
     }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "",
+            Self::Create => "create",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::Hold => "hold",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,18 +92,43 @@ impl InfoSidecar {
     }
 
     pub fn pre_sync(updated_time: i64, user_id: &str, action: SyncAction) -> Self {
-        let action = match action {
-            SyncAction::None => "",
-            SyncAction::Create => "create",
-            SyncAction::Update => "update",
-            SyncAction::Delete => "delete",
-            SyncAction::Hold => "hold",
-        };
         let raw = format!(
-            "sync_info = {action}\nuser_id = {user_id}\nsetting_id = \nbase_id = \nupdated_time = {updated_time}\n"
+            "sync_info = {}\nuser_id = {user_id}\nsetting_id = \nbase_id = \nupdated_time = {updated_time}\n",
+            action.as_str()
         )
         .into_bytes();
         Self::parse(&raw).expect("generated sidecar must be valid")
+    }
+
+    pub fn transition(&self, updated_time: i64, action: SyncAction) -> Self {
+        let line_ending = if self.raw.windows(2).any(|bytes| bytes == b"\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let text = std::str::from_utf8(&self.raw).expect("validated during parse");
+        let blank_has_space: BTreeMap<_, _> = text
+            .lines()
+            .filter_map(|line| {
+                line.split_once(" =")
+                    .map(|(key, value)| (key, value.starts_with(' ')))
+            })
+            .collect();
+        let mut values = self.values.clone();
+        values.insert("sync_info".to_owned(), action.as_str().to_owned());
+        values.insert("updated_time".to_owned(), updated_time.to_string());
+        let mut raw = String::new();
+        for key in REQUIRED_INFO_FIELDS {
+            let value = &values[key];
+            raw.push_str(key);
+            raw.push_str(" =");
+            if !value.is_empty() || blank_has_space.get(key).copied().unwrap_or(true) {
+                raw.push(' ');
+            }
+            raw.push_str(value);
+            raw.push_str(line_ending);
+        }
+        Self::parse(raw.as_bytes()).expect("transitioned sidecar must be valid")
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {

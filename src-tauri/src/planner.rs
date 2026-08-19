@@ -4,7 +4,7 @@ use crate::naming::{NamingContext, NamingTemplate};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -315,6 +315,7 @@ impl Planner {
             }
         }
         reject_duplicate_outputs(&mut operations);
+        reject_generated_id_collisions(&mut operations);
         let canonical = serde_json::to_vec(&operations)
             .map_err(|error| AppError::InvalidProfile(error.to_string()))?;
         Ok(MigrationPlan {
@@ -427,6 +428,36 @@ fn reject_duplicate_outputs(operations: &mut [PlanOperation]) {
                 kind: ConflictKind::IdentityCollision,
                 message: "multiple selected sources generate the same destination name".to_owned(),
             });
+        }
+    }
+}
+
+fn reject_generated_id_collisions(operations: &mut [PlanOperation]) {
+    let mut by_id: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (index, operation) in operations.iter().enumerate() {
+        by_id
+            .entry(operation.filament_id.clone())
+            .or_default()
+            .push(index);
+    }
+    for indices in by_id.values() {
+        let identities: BTreeSet<_> = indices
+            .iter()
+            .map(|index| {
+                (
+                    normalize_identity(&operations[*index].ams_name),
+                    operations[*index].source_settings_fingerprint.as_str(),
+                )
+            })
+            .collect();
+        if identities.len() > 1 {
+            for index in indices {
+                operations[*index].action = PlanAction::Block;
+                operations[*index].conflict = Some(Conflict {
+                    kind: ConflictKind::IdentityCollision,
+                    message: "generated filament id maps to multiple identities".to_owned(),
+                });
+            }
         }
     }
 }

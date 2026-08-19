@@ -198,6 +198,35 @@ fn case_only_identity_collision_blocks_but_missing_target_is_created() {
 }
 
 #[test]
+fn generated_id_collision_blocks_every_conflicting_identity() {
+    let mut first = source("Panchroma PLA Satin");
+    first.existing_filament_id = Some("P7654321".to_owned());
+    let mut second = source("Panchroma PLA Matte");
+    second.variant = "Matte".to_owned();
+    second.existing_filament_id = Some("P7654321".to_owned());
+    let request = MigrationRequest {
+        sources: vec![first, second],
+        targets: vec![target("0.4")],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "2182110758".to_owned(),
+    };
+    let plan = Planner::build(&request, &DestinationIndex::default()).unwrap();
+    assert_eq!(plan.operations.len(), 2);
+    assert!(
+        plan.operations
+            .iter()
+            .all(|operation| operation.action.as_str() == "block")
+    );
+    assert!(plan.operations.iter().all(|operation| {
+        operation
+            .conflict
+            .as_ref()
+            .is_some_and(|conflict| conflict.message.contains("filament id"))
+    }));
+}
+
+#[test]
 fn equivalent_destination_is_skipped_but_different_settings_conflict() {
     let request = MigrationRequest {
         sources: vec![source("Panchroma PLA Satin")],

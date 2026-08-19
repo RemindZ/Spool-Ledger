@@ -8,6 +8,7 @@ pub mod platform;
 pub mod profiles;
 pub mod resolver;
 pub mod targets;
+pub mod writer;
 
 pub use error::AppError;
 pub use model::*;
