@@ -72,9 +72,9 @@ impl InfoSidecar {
             }
         }
         SyncAction::parse(&values["sync_info"])?;
-        values["updated_time"].parse::<i64>().map_err(|_| {
-            AppError::InvalidProfile("updated_time must be an integer".to_owned())
-        })?;
+        values["updated_time"]
+            .parse::<i64>()
+            .map_err(|_| AppError::InvalidProfile("updated_time must be an integer".to_owned()))?;
         Ok(Self {
             raw: bytes.to_vec(),
             values,

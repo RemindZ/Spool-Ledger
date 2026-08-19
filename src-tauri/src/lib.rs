@@ -1,6 +1,8 @@
 pub mod error;
+pub mod field_policy;
 pub mod model;
 pub mod profiles;
+pub mod resolver;
 
 pub use error::AppError;
 pub use model::*;
