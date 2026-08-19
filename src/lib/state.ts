@@ -13,6 +13,8 @@ import type {
   PrinterTarget,
   SourceApp,
   SourceKind,
+  SyncPhase,
+  SyncResult,
 } from "./types";
 
 export type Theme = "system" | "light" | "dark";
@@ -22,6 +24,7 @@ export type AppPhase =
   | "ready"
   | "planning"
   | "executing"
+  | "synchronizing"
   | "complete"
   | "error";
 
@@ -82,6 +85,9 @@ export interface AppState {
   plan: MigrationPlan | null;
   progress: Record<string, OperationProgress>;
   result: LocalRunResult | null;
+  synchronization: SyncResult | null;
+  syncPhase: SyncPhase | null;
+  syncError: string | null;
   error: string | null;
 }
 
@@ -113,6 +119,10 @@ export type AppAction =
       state: OperationState;
     }
   | { type: "execution_completed"; result: LocalRunResult }
+  | { type: "synchronization_started" }
+  | { type: "synchronization_phase"; phase: SyncPhase }
+  | { type: "synchronization_completed"; result: SyncResult }
+  | { type: "synchronization_failed"; message: string }
   | { type: "ams_verified"; operationIds: string[] };
 
 const DEFAULT_PRESET_TEMPLATE = "{clean_name} - {printer_code}";
@@ -162,12 +172,23 @@ export function createInitialState(
     plan: null,
     progress: {},
     result: null,
+    synchronization: null,
+    syncPhase: null,
+    syncError: null,
     error: null,
   };
 }
 
 function invalidatePlan(state: AppState): AppState {
-  return { ...state, plan: null, result: null, progress: {} };
+  return {
+    ...state,
+    plan: null,
+    result: null,
+    progress: {},
+    synchronization: null,
+    syncPhase: null,
+    syncError: null,
+  };
 }
 
 export function toggleSetValue<T>(values: Set<T>, value: T): Set<T> {
@@ -344,7 +365,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         error: null,
       };
     case "execution_started":
-      return { ...state, phase: "executing", error: null };
+      return {
+        ...state,
+        phase: "executing",
+        progress: {},
+        result: null,
+        synchronization: null,
+        syncPhase: null,
+        syncError: null,
+        error: null,
+      };
     case "progress_updated":
       return {
         ...state,
@@ -362,6 +392,40 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: "complete",
         result: action.result,
         error: null,
+      };
+    case "synchronization_started":
+      return {
+        ...state,
+        phase: "synchronizing",
+        synchronization: null,
+        syncPhase: null,
+        syncError: null,
+      };
+    case "synchronization_phase":
+      return { ...state, syncPhase: action.phase };
+    case "synchronization_completed": {
+      const progress = { ...state.progress };
+      for (const observation of action.result.observations) {
+        progress[observation.operation_id] = {
+          evidence: observation.evidence,
+          state: observation.state,
+        };
+      }
+      return {
+        ...state,
+        phase: "complete",
+        progress,
+        synchronization: action.result,
+        syncPhase: "finished",
+        syncError: null,
+      };
+    }
+    case "synchronization_failed":
+      return {
+        ...state,
+        phase: "complete",
+        syncPhase: null,
+        syncError: action.message,
       };
     case "ams_verified": {
       const progress = { ...state.progress };

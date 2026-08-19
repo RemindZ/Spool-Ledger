@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   previewNames: vi.fn(),
   buildPlan: vi.fn(),
   executePlan: vi.fn(),
+  synchronizeRun: vi.fn(),
   cancelRun: vi.fn(),
   recordAmsVerification: vi.fn(),
   restorePreview: vi.fn(),
@@ -121,6 +122,30 @@ beforeEach(() => {
     committed_files: 3,
     receipt_path: "receipt.json",
   });
+  mocks.synchronizeRun.mockImplementation(
+    async (
+      runId: string,
+      onProgress: (event: { run_id: string; phase: string }) => void,
+    ) => {
+      onProgress({ run_id: runId, phase: "launching" });
+      onProgress({ run_id: runId, phase: "monitoring" });
+      return {
+        timed_out: false,
+        highest_evidence: "cloud_id_assigned",
+        observations: [
+          {
+            operation_id: operation.id,
+            info_path: "profile.info",
+            evidence: "cloud_id_assigned",
+            state: "cloud_id_assigned",
+            setting_id: "PFUSunique123",
+            diagnostic: null,
+          },
+        ],
+      };
+    },
+  );
+  mocks.cancelRun.mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -159,6 +184,80 @@ describe("application workflow", () => {
       await screen.findByText("3 local files committed"),
     ).toBeInTheDocument();
     expect(mocks.executePlan).toHaveBeenCalledWith("plan-1");
+    await waitFor(() =>
+      expect(mocks.synchronizeRun).toHaveBeenCalledWith(
+        "run-1",
+        expect.any(Function),
+      ),
+    );
+    expect(await screen.findByText("Cloud ID assigned")).toBeInTheDocument();
+  });
+
+  it("retains a timed-out local result and retries synchronization", async () => {
+    mocks.synchronizeRun.mockImplementationOnce(async () => ({
+      timed_out: true,
+      highest_evidence: "created_local",
+      observations: [
+        {
+          operation_id: operation.id,
+          info_path: "profile.info",
+          evidence: "created_local",
+          state: "created_local_unsynchronized",
+          setting_id: null,
+          diagnostic: null,
+        },
+      ],
+    }));
+    render(App);
+    await screen.findByText(source.name);
+    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
+    await fireEvent.click(screen.getByLabelText("0.4 mm"));
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Build migration plan" }),
+    );
+    await screen.findByText("Panchroma Satin - H2C");
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Commit migration" }),
+    );
+
+    expect(
+      await screen.findByText("Synchronization timed out"),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Retry synchronization" }),
+    );
+
+    await waitFor(() => expect(mocks.synchronizeRun).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Cloud ID assigned")).toBeInTheDocument();
+  });
+
+  it("cancels active monitoring by its committed run id", async () => {
+    mocks.synchronizeRun.mockImplementationOnce(
+      async (
+        runId: string,
+        onProgress: (event: { run_id: string; phase: string }) => void,
+      ) => {
+        onProgress({ run_id: runId, phase: "monitoring" });
+        return new Promise(() => {});
+      },
+    );
+    render(App);
+    await screen.findByText(source.name);
+    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
+    await fireEvent.click(screen.getByLabelText("0.4 mm"));
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Build migration plan" }),
+    );
+    await screen.findByText("Panchroma Satin - H2C");
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Commit migration" }),
+    );
+
+    await fireEvent.click(
+      await screen.findByRole("button", { name: "Cancel monitoring" }),
+    );
+
+    expect(mocks.cancelRun).toHaveBeenCalledWith("run-1");
   });
 
   it("blocks planning until a source, nozzle, and eligible account are selected", async () => {

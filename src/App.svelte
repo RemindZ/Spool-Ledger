@@ -313,6 +313,30 @@
     void buildPlan({ overrides });
   }
 
+  async function synchronizeRun(runId = appState.result?.run_id) {
+    if (!runId) return;
+    dispatch({ type: 'synchronization_started' });
+    try {
+      const synchronization = await api.synchronizeRun(runId, (event) => {
+        if (event.run_id === runId) {
+          dispatch({ type: 'synchronization_phase', phase: event.phase });
+        }
+      });
+      dispatch({ type: 'synchronization_completed', result: synchronization });
+    } catch (error) {
+      dispatch({ type: 'synchronization_failed', message: errorMessage(error) });
+    }
+  }
+
+  async function cancelSynchronization() {
+    if (!appState.result || appState.phase !== 'synchronizing') return;
+    try {
+      await api.cancelRun(appState.result.run_id);
+    } catch (error) {
+      dispatch({ type: 'synchronization_failed', message: errorMessage(error) });
+    }
+  }
+
   async function executePlan() {
     if (!appState.plan || planBlocked) return;
     dispatch({ type: 'execution_started' });
@@ -324,6 +348,7 @@
         }
       }
       dispatch({ type: 'execution_completed', result });
+      await synchronizeRun(result.run_id);
     } catch (error) {
       dispatch({ type: 'failed', message: errorMessage(error) });
     }
@@ -476,12 +501,30 @@
         <PlanTable plan={appState.plan} onOverride={overrideOperation} />
       {/if}
 
-      {#if appState.plan && (appState.phase === 'executing' || Object.keys(appState.progress).length)}
-        <RunProgress plan={appState.plan} progress={appState.progress} running={appState.phase === 'executing'} onVerify={verifyAms} />
+      {#if appState.plan && (appState.phase === 'executing' || appState.phase === 'synchronizing' || Object.keys(appState.progress).length)}
+        <RunProgress
+          plan={appState.plan}
+          progress={appState.progress}
+          running={appState.phase === 'executing' || appState.phase === 'synchronizing'}
+          cancellable={appState.phase === 'synchronizing'}
+          onCancel={cancelSynchronization}
+          onVerify={verifyAms}
+        />
       {/if}
 
       {#if appState.result}
-        <ResultSummary result={appState.result} {restorePreview} {rollback} {restoring} onPreviewRestore={previewRestore} onRestore={restoreOwned} />
+        <ResultSummary
+          result={appState.result}
+          synchronization={appState.synchronization}
+          syncError={appState.syncError}
+          syncing={appState.phase === 'synchronizing'}
+          {restorePreview}
+          {rollback}
+          {restoring}
+          onRetrySync={synchronizeRun}
+          onPreviewRestore={previewRestore}
+          onRestore={restoreOwned}
+        />
       {/if}
     </main>
 

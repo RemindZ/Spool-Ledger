@@ -1,19 +1,27 @@
 <script lang="ts">
-  import { AlertTriangle, ArchiveRestore, CheckCircle2, FileCheck2 } from '@lucide/svelte';
-  import type { LocalRunResult, RestorePreview, RollbackOutcome } from '../types';
+  import { AlertTriangle, ArchiveRestore, CheckCircle2, FileCheck2, RefreshCw } from '@lucide/svelte';
+  import type { LocalRunResult, RestorePreview, RollbackOutcome, SyncResult } from '../types';
 
   let {
     result,
     restorePreview = null,
     rollback = null,
+    synchronization = null,
+    syncError = null,
+    syncing = false,
     restoring = false,
+    onRetrySync = () => {},
     onPreviewRestore = () => {},
     onRestore = () => {},
   }: {
     result: LocalRunResult;
     restorePreview?: RestorePreview | null;
     rollback?: RollbackOutcome | null;
+    synchronization?: SyncResult | null;
+    syncError?: string | null;
+    syncing?: boolean;
     restoring?: boolean;
+    onRetrySync?: () => void;
     onPreviewRestore?: () => void;
     onRestore?: () => void;
   } = $props();
@@ -36,6 +44,30 @@
     <div><dt>Plan</dt><dd>{result.plan_id}</dd></div>
     <div><dt>Receipt</dt><dd><FileCheck2 size={14} /> Saved</dd></div>
   </dl>
+
+  {#if syncing}
+    <div class="sync-summary" role="status">
+      <RefreshCw size={16} class="spin" />
+      <span><strong>Synchronizing with Bambu Studio</strong><small>Waiting for local acknowledgement and unique PFUS IDs.</small></span>
+    </div>
+  {:else if syncError}
+    <div class="sync-summary warning" role="alert">
+      <AlertTriangle size={16} />
+      <span><strong>Synchronization stopped</strong><small>{syncError}</small></span>
+      <button class="secondary-button" type="button" onclick={onRetrySync}>Retry synchronization</button>
+    </div>
+  {:else if synchronization?.timed_out}
+    <div class="sync-summary warning" role="status">
+      <AlertTriangle size={16} />
+      <span><strong>Synchronization timed out</strong><small>Local profiles remain committed. The highest observed evidence is {synchronization.highest_evidence.replaceAll('_', ' ')}.</small></span>
+      <button class="secondary-button" type="button" onclick={onRetrySync}>Retry synchronization</button>
+    </div>
+  {:else if synchronization}
+    <div class="sync-summary" role="status">
+      <CheckCircle2 size={16} />
+      <span><strong>Synchronization observed</strong><small>Highest evidence: {synchronization.highest_evidence.replaceAll('_', ' ')}. AMS verification remains operator-only.</small></span>
+    </div>
+  {/if}
 
   {#if restorePreview}
     <div class="restore-preview" aria-live="polite">

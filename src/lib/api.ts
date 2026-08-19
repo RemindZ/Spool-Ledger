@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
   CatalogSource,
   DiscoveryResponse,
@@ -13,6 +13,8 @@ import type {
   RollbackOutcome,
   SourceApp,
   SourceKind,
+  SyncProgressEvent,
+  SyncResult,
 } from "./types";
 
 interface SourceCatalogResponse {
@@ -74,6 +76,17 @@ export const api = {
     invoke<{ plan: MigrationPlan }>("build_plan", { request }),
   executePlan: (planId: string) =>
     invoke<LocalRunResult>("execute_plan", { request: { plan_id: planId } }),
+  synchronizeRun: (
+    runId: string,
+    onProgress: (event: SyncProgressEvent) => void,
+  ) => {
+    const channel = new Channel<SyncProgressEvent>();
+    channel.onmessage = onProgress;
+    return invoke<SyncResult>("synchronize_run", {
+      request: { run_id: runId },
+      onProgress: channel,
+    });
+  },
   cancelRun: (runId: string) => invoke<void>("cancel_run", { runId }),
   recordAmsVerification: (
     runId: string,

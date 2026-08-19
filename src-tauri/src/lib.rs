@@ -29,6 +29,7 @@ pub fn run() {
             commands::preview_names,
             commands::build_plan,
             commands::execute_plan,
+            commands::synchronize_run,
             commands::cancel_run,
             commands::record_ams_verification,
             commands::restore_preview,

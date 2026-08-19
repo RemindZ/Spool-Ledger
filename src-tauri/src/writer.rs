@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 pub struct BambuAdapter {
     pub id: &'static str,
     pub profile_version: &'static str,
+    pub setting_id_prefix: &'static str,
     field_policy: FieldPolicyTable,
 }
 
@@ -25,6 +26,7 @@ impl BambuAdapter {
         Self {
             id: "bambu-2.0.0.56-v1",
             profile_version: "2.0.0.56",
+            setting_id_prefix: "PFUS",
             field_policy: FieldPolicyTable::bundled().expect("bundled field policy must be valid"),
         }
     }

@@ -7,12 +7,14 @@
     plan,
     progress,
     running,
+    cancellable = false,
     onCancel = () => {},
     onVerify = () => {},
   }: {
     plan: MigrationPlan;
     progress: Record<string, OperationProgress>;
     running: boolean;
+    cancellable?: boolean;
     onCancel?: () => void;
     onVerify?: (operationIds: string[]) => void;
   } = $props();
@@ -70,9 +72,9 @@
   </div>
 
   <footer class="panel-actions">
-    {#if running}
+    {#if running && cancellable}
       <button class="secondary-button" type="button" onclick={onCancel}>Cancel monitoring</button>
-    {:else if verifiedIds.length}
+    {:else if !running && verifiedIds.length}
       <button class="secondary-button" type="button" onclick={() => onVerify(verifiedIds)}
         >Record AMS verification</button
       >

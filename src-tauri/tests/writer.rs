@@ -89,6 +89,11 @@ fn read_json(path: &Path) -> Value {
 }
 
 #[test]
+fn adapter_owns_the_expected_cloud_setting_id_prefix() {
+    assert_eq!(BambuAdapter::v2_0_0_56().setting_id_prefix, "PFUS");
+}
+
+#[test]
 fn stages_normal_and_flattened_profiles_for_selected_nozzles_only() {
     let (sources, targets) = catalogs();
     let plan = Planner::build(

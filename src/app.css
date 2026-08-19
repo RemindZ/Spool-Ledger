@@ -614,6 +614,26 @@ input[type="checkbox"] {
   font-weight: 670;
 }
 
+.filter-presets {
+  border-top: 1px solid var(--line);
+}
+
+.filter-presets summary {
+  padding: 9px 11px;
+  color: var(--text-soft);
+  font-size: 0.65rem;
+  font-weight: 680;
+}
+
+.filter-preset-controls {
+  padding: 0 11px 11px;
+  border-top: 0;
+}
+
+.filter-preset-controls select {
+  max-width: none;
+}
+
 .source-workbench {
   min-width: 0;
 }
@@ -1165,13 +1185,184 @@ tbody tr:last-child td {
   font-weight: 680;
 }
 
-.advanced-copy {
+.rule-editor {
   display: grid;
+  gap: 10px;
+  padding: 0 11px 11px;
+}
+
+.rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rule-grid label,
+.preset-controls label,
+.filter-preset-controls label {
+  display: grid;
+  min-width: 0;
   gap: 4px;
-  padding: 0 11px 10px;
+}
+
+.rule-grid label > span,
+.preset-controls label > span,
+.filter-preset-controls label > span {
   color: var(--text-faint);
+  font-size: 0.59rem;
+  font-weight: 680;
+}
+
+.rule-grid input,
+.preset-controls input,
+.filter-preset-controls input,
+.plan-name-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.67rem;
+}
+
+.rule-grid input,
+.plan-name-input {
+  font-family: "Cascadia Mono", "Consolas", monospace;
+}
+
+.rule-wide {
+  grid-column: 1 / -1;
+}
+
+.case-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 0.65rem;
+}
+
+.rule-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.rule-list h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+  color: var(--text-soft);
+  font-size: 0.63rem;
+}
+
+.rule-list h3 span,
+.rule-index {
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-list ol {
+  display: grid;
+  padding: 0;
+  list-style: none;
+}
+
+.rule-list li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+}
+
+.rule-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.rule-index {
+  color: var(--text-faint);
+  font-size: 0.59rem;
+}
+
+.rule-description {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rule-description strong {
+  overflow: hidden;
+  color: var(--text);
   font-size: 0.64rem;
-  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-description small {
+  color: var(--text-faint);
+  font-size: 0.58rem;
+}
+
+.rule-actions,
+.saved-preset-list,
+.filter-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.rule-actions button,
+.saved-preset-list button,
+.filter-preset-list button {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-soft);
+  font-size: 0.59rem;
+}
+
+.rule-actions button:last-child,
+.saved-preset-list button,
+.filter-preset-list button {
+  color: var(--danger);
+}
+
+.preset-controls,
+.filter-preset-controls {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.preset-controls .secondary-button,
+.filter-preset-controls .secondary-button {
+  justify-self: start;
+}
+
+.saved-preset-list,
+.filter-preset-list {
+  padding-top: 2px;
+}
+
+.preview-before {
+  color: var(--text-faint);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.58rem;
+  text-decoration: line-through;
+  overflow-wrap: anywhere;
 }
 
 .plan-panel,
@@ -1209,6 +1400,15 @@ tbody tr:last-child td {
   margin-top: 3px;
   color: var(--text-faint);
   font-size: 0.6rem;
+}
+
+.plan-name-input {
+  max-width: 280px;
+}
+
+.plan-name-input:focus {
+  border-color: var(--bambu);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bambu) 14%, transparent);
 }
 
 .action-pill[data-action="create"],
@@ -1406,6 +1606,43 @@ tr.blocked {
   gap: 5px;
   color: var(--text-soft);
   font-size: 0.64rem;
+}
+
+.sync-summary {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bambu-soft);
+  color: var(--bambu-ink);
+}
+
+.sync-summary.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.sync-summary > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sync-summary strong {
+  font-size: 0.69rem;
+}
+
+.sync-summary small {
+  color: var(--text-soft);
+  font-size: 0.61rem;
+  line-height: 1.35;
+}
+
+.sync-summary .secondary-button {
+  min-height: 30px;
+  white-space: nowrap;
 }
 
 .restore-preview {
@@ -1726,6 +1963,20 @@ tr.blocked {
 
   .restore-preview li > strong {
     grid-column: 2;
+  }
+
+  .rule-grid,
+  .sync-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .rule-wide,
+  .sync-summary > :not(svg) {
+    grid-column: 1;
+  }
+
+  .sync-summary .secondary-button {
+    justify-self: start;
   }
 
   .action-dock {

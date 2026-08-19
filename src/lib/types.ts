@@ -167,6 +167,28 @@ export interface LocalRunResult {
   receipt_path: string;
 }
 
+export type SyncPhase = "launching" | "monitoring" | "finished";
+
+export interface SyncProgressEvent {
+  run_id: string;
+  phase: SyncPhase;
+}
+
+export interface SyncObservation {
+  operation_id: string;
+  info_path: string;
+  evidence: EvidenceLevel;
+  state: OperationState;
+  setting_id: string | null;
+  diagnostic: string | null;
+}
+
+export interface SyncResult {
+  timed_out: boolean;
+  highest_evidence: EvidenceLevel;
+  observations: SyncObservation[];
+}
+
 export interface RestorePreviewPath {
   path: string;
   action: "create" | "update" | "delete";

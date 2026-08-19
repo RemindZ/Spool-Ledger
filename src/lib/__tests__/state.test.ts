@@ -290,6 +290,50 @@ describe("application state", () => {
     }
   });
 
+  it("records synchronization evidence without discarding a committed local run", () => {
+    const local = {
+      run_id: "run-1",
+      plan_id: "plan-1",
+      committed_files: 3,
+      receipt_path: "receipt.json",
+    };
+    let state = reduce([{ type: "execution_completed", result: local }]);
+    state = appReducer(state, { type: "synchronization_started" });
+    expect(state.phase).toBe("synchronizing");
+    state = appReducer(state, {
+      type: "synchronization_phase",
+      phase: "monitoring",
+    });
+    state = appReducer(state, {
+      type: "synchronization_completed",
+      result: {
+        timed_out: true,
+        highest_evidence: "created_local",
+        observations: [
+          {
+            operation_id: "op-1",
+            info_path: "profile.info",
+            evidence: "created_local",
+            state: "created_local_unsynchronized",
+            setting_id: null,
+            diagnostic: null,
+          },
+        ],
+      },
+    });
+    expect(state.phase).toBe("complete");
+    expect(state.result).toEqual(local);
+    expect(state.synchronization?.timed_out).toBe(true);
+    expect(state.progress["op-1"].state).toBe("created_local_unsynchronized");
+
+    const failed = appReducer(state, {
+      type: "synchronization_failed",
+      message: "launch failed",
+    });
+    expect(failed.result).toEqual(local);
+    expect(failed.syncError).toBe("launch failed");
+  });
+
   it("keeps cloud assignment distinct from operator AMS verification", () => {
     const progressed = reduce([
       {

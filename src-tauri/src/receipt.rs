@@ -1,4 +1,5 @@
 use crate::AppError;
+use crate::sync::SyncResult;
 use crate::transaction::{BackupEvidence, FileAction, Transaction};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -23,6 +24,12 @@ pub struct ReceiptCounts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AmsVerificationEvidence {
+    pub operation_ids: Vec<String>,
+    pub recorded_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunReceipt {
     pub version: u32,
     pub run_id: String,
@@ -33,6 +40,10 @@ pub struct RunReceipt {
     pub journal_path: PathBuf,
     pub state: ReceiptState,
     pub counts: ReceiptCounts,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synchronization: Option<SyncResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ams_verification: Option<AmsVerificationEvidence>,
 }
 
 impl RunReceipt {
@@ -75,6 +86,8 @@ impl RunReceipt {
             journal_path: transaction.journal_path().to_path_buf(),
             state,
             counts,
+            synchronization: None,
+            ams_verification: None,
         })
     }
 

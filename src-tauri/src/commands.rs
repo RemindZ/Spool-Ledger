@@ -1,14 +1,19 @@
 use crate::AppError;
 use crate::discovery::{AccountRoot, DiscoveryService, DiscoverySnapshot, inspect_account};
-use crate::model::{AccountEligibility, PrinterTarget, ProfileId, SourceApp, SourceKind};
+use crate::model::{
+    AccountEligibility, EvidenceLevel, PrinterTarget, ProfileId, SourceApp, SourceKind,
+};
 use crate::naming::{NamingContext, NamingTemplate, ReplacementRuleSpec};
 use crate::planner::{
     DestinationIndex, MaterialFingerprintIndex, MigrationPlan, MigrationRequest, MigrationSource,
     MigrationStatus, NamingOptions, PlanAction, Planner, TargetSelection,
 };
-use crate::receipt::{ReceiptState, RunReceipt};
+use crate::receipt::{AmsVerificationEvidence, ReceiptState, RunReceipt};
 use crate::resolver::{CatalogRoot, ProfileCatalog};
-use crate::sync::{Clock, ProcessBackend, ProcessController, SystemClock, SystemProcessBackend};
+use crate::sync::{
+    Clock, FsSyncRuntime, ProcessBackend, ProcessController, SyncExpectation, SyncMonitor,
+    SyncResult, SyncRuntime, SystemClock, SystemProcessBackend, sha256_bytes,
+};
 use crate::targets::TargetCatalog;
 use crate::transaction::{RestorePreview, RollbackOutcome, Transaction, TransactionOptions};
 use crate::writer::{
@@ -20,8 +25,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::State;
+use tauri::ipc::Channel;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -239,6 +246,26 @@ pub struct ExecutePlanRequest {
     pub plan_id: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncPhase {
+    Launching,
+    Monitoring,
+    Finished,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SynchronizeRunRequest {
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncProgressEvent {
+    pub run_id: String,
+    pub phase: SyncPhase,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalRunResult {
     pub run_id: String,
@@ -326,7 +353,6 @@ pub struct MigrationService {
     target_catalogs: BTreeMap<String, CachedTargets>,
     plans: BTreeMap<String, StoredPlan>,
     runs: BTreeMap<String, PathBuf>,
-    cancelled_runs: BTreeSet<String>,
 }
 
 impl MigrationService {
@@ -338,7 +364,6 @@ impl MigrationService {
             target_catalogs: BTreeMap::new(),
             plans: BTreeMap::new(),
             runs: BTreeMap::new(),
-            cancelled_runs: BTreeSet::new(),
         })
     }
 
@@ -647,9 +672,6 @@ impl MigrationService {
             SourceApp::BambuStudio,
         )])?;
         let run_id = Uuid::new_v4().simple().to_string();
-        if self.cancelled_runs.remove(&run_id) {
-            return Err(AppError::Cancelled);
-        }
         let staging_root = self.config.data_root.join("staging").join(&run_id);
         let updated_time = chrono::Utc::now().timestamp();
         let staged = Writer::stage(
@@ -689,12 +711,109 @@ impl MigrationService {
         })
     }
 
+    pub fn synchronize_run_with(
+        &self,
+        run_id: &str,
+        process: &mut impl ProcessBackend,
+        runtime: &mut impl SyncRuntime,
+        timeout_ms: u64,
+        poll_interval_ms: u64,
+    ) -> Result<SyncResult, AppError> {
+        self.synchronize_run_with_progress(
+            run_id,
+            process,
+            runtime,
+            timeout_ms,
+            poll_interval_ms,
+            |_| {},
+        )
+    }
+
+    pub fn synchronize_run_with_progress(
+        &self,
+        run_id: &str,
+        process: &mut impl ProcessBackend,
+        runtime: &mut impl SyncRuntime,
+        timeout_ms: u64,
+        poll_interval_ms: u64,
+        mut on_progress: impl FnMut(SyncPhase),
+    ) -> Result<SyncResult, AppError> {
+        let run_root = self.known_run_root(run_id)?;
+        let transaction = Transaction::load(&run_root)?;
+        let account = self
+            .config
+            .accounts
+            .iter()
+            .find(|account| account.account.path == transaction.journal().destination_root)
+            .ok_or_else(|| {
+                AppError::Conflict("run destination is no longer approved".to_owned())
+            })?;
+        let executable = account.bambu_executable.as_deref().ok_or_else(|| {
+            AppError::Conflict("Bambu Studio executable is unavailable".to_owned())
+        })?;
+        let setting_id_prefix = BambuAdapter::v2_0_0_56().setting_id_prefix.to_owned();
+        let mut expectations = Vec::new();
+        for entry in &transaction.journal().entries {
+            if !entry.committed
+                || entry
+                    .relative_path
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    != Some("info")
+            {
+                continue;
+            }
+            let committed_sha256 = entry.committed_sha256.as_ref().ok_or_else(|| {
+                AppError::Conflict(format!(
+                    "committed sidecar has no journal hash: {}",
+                    entry.destination_path.display()
+                ))
+            })?;
+            let current = std::fs::read(&entry.destination_path)
+                .map_err(|error| AppError::io(&entry.destination_path, error))?;
+            if sha256_bytes(&current) != *committed_sha256 {
+                return Err(AppError::Conflict(format!(
+                    "sidecar changed before synchronization: {}",
+                    entry.destination_path.display()
+                )));
+            }
+            expectations.extend(
+                entry
+                    .operation_ids
+                    .iter()
+                    .map(|operation_id| SyncExpectation {
+                        operation_id: operation_id.clone(),
+                        info_path: entry.destination_path.clone(),
+                        initial_sha256: committed_sha256.clone(),
+                        setting_id_prefix: setting_id_prefix.clone(),
+                    }),
+            );
+        }
+        if expectations.is_empty() {
+            return Err(AppError::Conflict(
+                "run has no committed sidecars to synchronize".to_owned(),
+            ));
+        }
+        on_progress(SyncPhase::Launching);
+        ProcessController::launch(process, executable)?;
+        on_progress(SyncPhase::Monitoring);
+        let result = SyncMonitor::wait(&expectations, runtime, timeout_ms, poll_interval_ms)?;
+        let receipt_path = run_root.join("receipt.json");
+        let mut receipt = RunReceipt::load(&receipt_path)?;
+        receipt.synchronization = Some(result.clone());
+        receipt.save(&receipt_path)?;
+        on_progress(SyncPhase::Finished);
+        Ok(result)
+    }
+
     pub fn restore_preview(&self, run_id: &str) -> Result<RestorePreview, AppError> {
         Transaction::load(&self.known_run_root(run_id)?)?.restore_preview()
     }
 
     pub fn restore_owned(&mut self, run_id: &str) -> Result<RollbackOutcome, AppError> {
         let run_root = self.known_run_root(run_id)?;
+        let receipt_path = run_root.join("receipt.json");
+        let previous_receipt = RunReceipt::load(&receipt_path)?;
         let mut transaction = Transaction::load(&run_root)?;
         let outcome = transaction.rollback_owned()?;
         let state = if outcome.external_conflicts == 0 {
@@ -702,14 +821,11 @@ impl MigrationService {
         } else {
             ReceiptState::PartialRollback
         };
-        RunReceipt::from_transaction(&transaction, state)?.save(&run_root.join("receipt.json"))?;
+        let mut receipt = RunReceipt::from_transaction(&transaction, state)?;
+        receipt.synchronization = previous_receipt.synchronization;
+        receipt.ams_verification = previous_receipt.ams_verification;
+        receipt.save(&receipt_path)?;
         Ok(outcome)
-    }
-
-    pub fn cancel_run(&mut self, run_id: &str) -> Result<(), AppError> {
-        validate_opaque_id(run_id)?;
-        self.cancelled_runs.insert(run_id.to_owned());
-        Ok(())
     }
 
     pub fn record_ams_verification(&self, request: AmsVerificationRequest) -> Result<(), AppError> {
@@ -731,18 +847,40 @@ impl MigrationService {
                 "AMS verification contains an unknown operation".to_owned(),
             ));
         }
+        let mut receipt = RunReceipt::load(&run_root.join("receipt.json"))?;
+        let synchronization = receipt.synchronization.as_ref().ok_or_else(|| {
+            AppError::Conflict("AMS verification requires cloud assignment evidence".to_owned())
+        })?;
+        if request.operation_ids.iter().any(|operation_id| {
+            !synchronization.observations.iter().any(|observation| {
+                observation.operation_id == *operation_id
+                    && observation.evidence == EvidenceLevel::CloudIdAssigned
+            })
+        }) {
+            return Err(AppError::Conflict(
+                "AMS verification requires cloud assignment evidence for every operation"
+                    .to_owned(),
+            ));
+        }
+        let recorded_at = chrono::Utc::now().timestamp();
+        let evidence = AmsVerificationEvidence {
+            operation_ids: request.operation_ids.clone(),
+            recorded_at,
+        };
         let record = AmsVerificationRecord {
             run_id: request.run_id,
             operation_ids: request.operation_ids,
             note: request.note,
-            recorded_at: chrono::Utc::now().timestamp(),
+            recorded_at,
             operator_verified: true,
         };
         let path = run_root.join("ams-verification.json");
         let mut bytes = serde_json::to_vec_pretty(&record)
             .map_err(|error| AppError::InvalidProfile(error.to_string()))?;
         bytes.push(b'\n');
-        std::fs::write(&path, bytes).map_err(|error| AppError::io(path, error))
+        std::fs::write(&path, bytes).map_err(|error| AppError::io(path, error))?;
+        receipt.ams_verification = Some(evidence);
+        receipt.save(&run_root.join("receipt.json"))
     }
 
     pub fn preview_names(
@@ -1036,8 +1174,69 @@ fn validate_opaque_id(value: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(Default)]
+struct ActiveSynchronizations {
+    tokens: Mutex<BTreeMap<String, Arc<AtomicBool>>>,
+}
+
+impl ActiveSynchronizations {
+    fn start(&self, run_id: &str) -> Result<Arc<AtomicBool>, AppError> {
+        validate_opaque_id(run_id)?;
+        let mut tokens = self.tokens.lock().map_err(|_| {
+            AppError::Conflict("synchronization registry is unavailable".to_owned())
+        })?;
+        if tokens.contains_key(run_id) {
+            return Err(AppError::Conflict(
+                "synchronization is already running".to_owned(),
+            ));
+        }
+        let token = Arc::new(AtomicBool::new(false));
+        tokens.insert(run_id.to_owned(), token.clone());
+        Ok(token)
+    }
+
+    fn cancel(&self, run_id: &str) -> Result<(), AppError> {
+        validate_opaque_id(run_id)?;
+        let tokens = self.tokens.lock().map_err(|_| {
+            AppError::Conflict("synchronization registry is unavailable".to_owned())
+        })?;
+        let token = tokens
+            .get(run_id)
+            .ok_or_else(|| AppError::Conflict("run is not synchronizing".to_owned()))?;
+        token.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn finish(&self, run_id: &str) -> Result<(), AppError> {
+        self.tokens
+            .lock()
+            .map_err(|_| AppError::Conflict("synchronization registry is unavailable".to_owned()))?
+            .remove(run_id);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ActiveSynchronizations;
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn active_synchronization_can_be_cancelled_without_service_lock() {
+        let active = ActiveSynchronizations::default();
+        let token = active.start("run-1").unwrap();
+
+        active.cancel("run-1").unwrap();
+
+        assert!(token.load(Ordering::SeqCst));
+        active.finish("run-1").unwrap();
+        assert!(active.cancel("run-1").is_err());
+    }
+}
+
 pub struct AppState {
     service: Mutex<MigrationService>,
+    active_synchronizations: ActiveSynchronizations,
 }
 
 impl AppState {
@@ -1045,6 +1244,7 @@ impl AppState {
         let (config, _) = ServiceConfig::current()?;
         Ok(Self {
             service: Mutex::new(MigrationService::new(config)?),
+            active_synchronizations: ActiveSynchronizations::default(),
         })
     }
 }
@@ -1130,12 +1330,47 @@ pub fn execute_plan(
 }
 
 #[tauri::command]
+pub fn synchronize_run(
+    state: State<'_, AppState>,
+    request: SynchronizeRunRequest,
+    on_progress: Channel<SyncProgressEvent>,
+) -> Result<SyncResult, String> {
+    let token = state
+        .active_synchronizations
+        .start(&request.run_id)
+        .map_err(command_error)?;
+    let mut process = SystemProcessBackend::default();
+    let mut runtime = FsSyncRuntime::new(token);
+    let result = match state.service.lock() {
+        Ok(service) => service
+            .synchronize_run_with_progress(
+                &request.run_id,
+                &mut process,
+                &mut runtime,
+                120_000,
+                500,
+                |phase| {
+                    let _ = on_progress.send(SyncProgressEvent {
+                        run_id: request.run_id.clone(),
+                        phase,
+                    });
+                },
+            )
+            .map_err(command_error),
+        Err(error) => Err(error.to_string()),
+    };
+    state
+        .active_synchronizations
+        .finish(&request.run_id)
+        .map_err(command_error)?;
+    result
+}
+
+#[tauri::command]
 pub fn cancel_run(state: State<'_, AppState>, run_id: String) -> Result<(), String> {
     state
-        .service
-        .lock()
-        .map_err(|error| error.to_string())?
-        .cancel_run(&run_id)
+        .active_synchronizations
+        .cancel(&run_id)
         .map_err(command_error)
 }
 

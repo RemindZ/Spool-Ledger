@@ -1,16 +1,18 @@
 use bambu_filament_migrator::commands::{
-    ApprovedAccount, ApprovedSourceRoot, ApprovedTargetCatalog, BuildPlanRequest,
-    CatalogSourcesRequest, CatalogTargetsRequest, ExecutePlanRequest, MigrationService,
-    NozzleSelection, PreviewNameRow, PreviewNamesRequest, ServiceConfig,
+    AmsVerificationRequest, ApprovedAccount, ApprovedSourceRoot, ApprovedTargetCatalog,
+    BuildPlanRequest, CatalogSourcesRequest, CatalogTargetsRequest, ExecutePlanRequest,
+    MigrationService, NozzleSelection, PreviewNameRow, PreviewNamesRequest, ServiceConfig,
+    SyncPhase,
 };
 use bambu_filament_migrator::discovery::inspect_account;
-use bambu_filament_migrator::model::{ProfileId, SourceApp, SourceKind};
+use bambu_filament_migrator::model::{EvidenceLevel, ProfileId, SourceApp, SourceKind};
 use bambu_filament_migrator::naming::{
     ConditionField, ReplacementRuleSpec, RuleConditionSpec, RulePatternKind,
 };
 use bambu_filament_migrator::planner::{NameOverride, NamingOptions};
-use bambu_filament_migrator::sync::{Clock, ProcessBackend};
-use std::collections::VecDeque;
+use bambu_filament_migrator::receipt::RunReceipt;
+use bambu_filament_migrator::sync::{Clock, ProcessBackend, SyncRuntime};
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 
 fn fixtures() -> PathBuf {
@@ -53,6 +55,8 @@ fn fixture_service(eligible: bool) -> FixtureService {
         .unwrap();
     }
     let account = inspect_account(&destination).unwrap();
+    let executable = temp.path().join("BambuStudio");
+    std::fs::write(&executable, b"synthetic executable").unwrap();
     let config = ServiceConfig {
         sources: vec![ApprovedSourceRoot {
             id: "source:orca:system".to_owned(),
@@ -68,7 +72,7 @@ fn fixture_service(eligible: bool) -> FixtureService {
         }],
         accounts: vec![ApprovedAccount {
             account,
-            bambu_executable: None,
+            bambu_executable: Some(executable),
         }],
         data_root: temp.path().join("app-data"),
         process_close_timeout_ms: 200,
@@ -144,6 +148,53 @@ impl ProcessBackend for FakeProcess {
 
     fn launch(&mut self, _executable: &Path) -> Result<(), String> {
         Ok(())
+    }
+}
+
+#[derive(Default)]
+struct SyncProcess {
+    launched: Vec<PathBuf>,
+}
+
+impl ProcessBackend for SyncProcess {
+    fn bambu_processes(&mut self) -> Result<Vec<u32>, String> {
+        Ok(Vec::new())
+    }
+
+    fn request_graceful_close(&mut self, _process_ids: &[u32]) -> Result<bool, String> {
+        Ok(true)
+    }
+
+    fn launch(&mut self, executable: &Path) -> Result<(), String> {
+        self.launched.push(executable.to_path_buf());
+        Ok(())
+    }
+}
+
+struct FakeSyncRuntime {
+    now: u64,
+    snapshots: BTreeMap<PathBuf, VecDeque<Option<Vec<u8>>>>,
+}
+
+impl SyncRuntime for FakeSyncRuntime {
+    fn read(&mut self, path: &Path) -> Result<Option<Vec<u8>>, String> {
+        Ok(self
+            .snapshots
+            .get_mut(path)
+            .and_then(VecDeque::pop_front)
+            .flatten())
+    }
+
+    fn now_ms(&self) -> u64 {
+        self.now
+    }
+
+    fn sleep_ms(&mut self, duration: u64) {
+        self.now += duration;
+    }
+
+    fn is_cancelled(&self) -> bool {
+        false
     }
 }
 
@@ -423,6 +474,138 @@ fn changed_material_setting_in_flat_destination_blocks_second_plan() {
         .unwrap();
     assert_eq!(second.plan.operations.len(), 1);
     assert_eq!(second.plan.operations[0].action.as_str(), "block");
+}
+
+#[test]
+fn ams_verification_cannot_outrun_cloud_assignment_evidence() {
+    let mut fixture = fixture_service(true);
+    let plan_id = build_plan(&mut fixture);
+    let mut process = FakeProcess {
+        checks: VecDeque::from([vec![]]),
+    };
+    let mut clock = FakeClock::default();
+    let local = fixture
+        .service
+        .execute_plan_with(ExecutePlanRequest { plan_id }, &mut process, &mut clock)
+        .unwrap();
+    let transaction = bambu_filament_migrator::transaction::Transaction::load(
+        &fixture.service.data_root().join("runs").join(&local.run_id),
+    )
+    .unwrap();
+    let operation_id = transaction.journal().entries[0].operation_ids[0].clone();
+
+    let error = fixture
+        .service
+        .record_ams_verification(AmsVerificationRequest {
+            run_id: local.run_id,
+            operation_ids: vec![operation_id],
+            note: "not actually checked".to_owned(),
+        })
+        .unwrap_err();
+
+    assert!(error.to_string().contains("cloud"));
+}
+
+#[test]
+fn synchronization_launches_bambu_monitors_journaled_sidecars_and_updates_receipt() {
+    let mut fixture = fixture_service(true);
+    let plan_id = build_plan(&mut fixture);
+    let mut process = FakeProcess {
+        checks: VecDeque::from([vec![]]),
+    };
+    let mut clock = FakeClock::default();
+    let local = fixture
+        .service
+        .execute_plan_with(ExecutePlanRequest { plan_id }, &mut process, &mut clock)
+        .unwrap();
+    let info_path = fixture
+        .destination
+        .join("filament/base/Northstar PLA Aurora @Bambu Lab H2C 0.4 nozzle.info")
+        .canonicalize()
+        .unwrap();
+    let initial = std::fs::read(&info_path).unwrap();
+    let cloud = String::from_utf8(initial.clone())
+        .unwrap()
+        .replace("setting_id = \n", "setting_id = PFUSunique123\n")
+        .into_bytes();
+    let mut timeout_runtime = FakeSyncRuntime {
+        now: 0,
+        snapshots: BTreeMap::from([(
+            info_path.clone(),
+            VecDeque::from([Some(initial.clone()), Some(initial.clone())]),
+        )]),
+    };
+    let timeout = fixture
+        .service
+        .synchronize_run_with(
+            &local.run_id,
+            &mut SyncProcess::default(),
+            &mut timeout_runtime,
+            100,
+            100,
+        )
+        .unwrap();
+    assert!(timeout.timed_out);
+    assert_eq!(timeout.highest_evidence, EvidenceLevel::CreatedLocal);
+
+    let mut runtime = FakeSyncRuntime {
+        now: 0,
+        snapshots: BTreeMap::from([(info_path, VecDeque::from([Some(initial), Some(cloud)]))]),
+    };
+    let mut sync_process = SyncProcess::default();
+    let mut phases = Vec::new();
+
+    let synchronization = fixture
+        .service
+        .synchronize_run_with_progress(
+            &local.run_id,
+            &mut sync_process,
+            &mut runtime,
+            1_000,
+            100,
+            |phase| phases.push(phase),
+        )
+        .unwrap();
+
+    assert_eq!(
+        phases,
+        vec![
+            SyncPhase::Launching,
+            SyncPhase::Monitoring,
+            SyncPhase::Finished
+        ]
+    );
+    assert_eq!(sync_process.launched.len(), 1);
+    assert_eq!(
+        synchronization.highest_evidence,
+        EvidenceLevel::CloudIdAssigned
+    );
+    assert!(!synchronization.timed_out);
+    let receipt = RunReceipt::load(&local.receipt_path).unwrap();
+    assert_eq!(receipt.synchronization.as_ref(), Some(&synchronization));
+
+    let verified_operation = synchronization.observations[0].operation_id.clone();
+    fixture
+        .service
+        .record_ams_verification(AmsVerificationRequest {
+            run_id: local.run_id.clone(),
+            operation_ids: vec![verified_operation.clone()],
+            note: "verified after restart".to_owned(),
+        })
+        .unwrap();
+    let verified_receipt = RunReceipt::load(&local.receipt_path).unwrap();
+    assert_eq!(
+        verified_receipt.ams_verification.unwrap().operation_ids,
+        vec![verified_operation]
+    );
+
+    fixture.service.restore_owned(&local.run_id).unwrap();
+    let restored_receipt = RunReceipt::load(&local.receipt_path).unwrap();
+    assert_eq!(
+        restored_receipt.synchronization.as_ref(),
+        Some(&synchronization)
+    );
+    assert!(restored_receipt.ams_verification.is_some());
 }
 
 #[test]
