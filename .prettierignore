@@ -1,0 +1,7 @@
+docs/
+fixtures/
+src-tauri/
+SCOPE.md
+node_modules/
+dist/
+target/

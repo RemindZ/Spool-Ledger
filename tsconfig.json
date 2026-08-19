@@ -16,5 +16,10 @@
     "target": "ES2022",
     "types": ["vitest/globals"]
   },
-  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
+  "include": [
+    "src/**/*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "vite.config.ts"
+  ]
 }
