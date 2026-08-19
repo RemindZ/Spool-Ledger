@@ -119,7 +119,7 @@ impl Writer {
                     operation.source_id
                 ))
             })?;
-            let target = targets.get(&operation.printer_id).ok_or_else(|| {
+            let target = targets.get(&operation.id).ok_or_else(|| {
                 AppError::InvalidProfile(format!(
                     "resolved target disappeared: {}",
                     operation.printer_id
@@ -252,12 +252,13 @@ fn resolve_targets(
 ) -> Result<BTreeMap<String, EffectiveProfile>, AppError> {
     let mut result = BTreeMap::new();
     for operation in operations {
-        if result.contains_key(&operation.printer_id) {
+        if result.contains_key(&operation.id) {
             continue;
         }
         let profile_name = context
             .target_profiles
-            .get(&operation.printer_id)
+            .get(&operation.id)
+            .or_else(|| context.target_profiles.get(&operation.printer_id))
             .ok_or_else(|| {
                 AppError::UnsupportedSchema(format!(
                     "no characterized target profile for {}",
@@ -269,7 +270,7 @@ fn resolve_targets(
             .adapter
             .field_policy
             .validate_cross_application(effective.values.keys().map(String::as_str))?;
-        result.insert(operation.printer_id.clone(), effective);
+        result.insert(operation.id.clone(), effective);
     }
     Ok(result)
 }
@@ -278,18 +279,20 @@ fn common_target<'a>(
     operations: &[&PlanOperation],
     targets: &'a BTreeMap<String, EffectiveProfile>,
 ) -> Result<&'a EffectiveProfile, AppError> {
-    let target_ids: BTreeSet<_> = operations
-        .iter()
-        .map(|operation| operation.printer_id.as_str())
-        .collect();
-    if target_ids.len() != 1 {
+    let first = operations
+        .first()
+        .and_then(|operation| targets.get(&operation.id))
+        .ok_or_else(|| AppError::InvalidProfile("target profile was not resolved".to_owned()))?;
+    if operations.iter().any(|operation| {
+        targets
+            .get(&operation.id)
+            .is_none_or(|target| target.name != first.name)
+    }) {
         return Err(AppError::Conflict(
             "one slicing preset name resolves to multiple target profiles".to_owned(),
         ));
     }
-    targets
-        .get(*target_ids.first().expect("checked length"))
-        .ok_or_else(|| AppError::InvalidProfile("target profile was not resolved".to_owned()))
+    Ok(first)
 }
 
 fn build_normal_profile(

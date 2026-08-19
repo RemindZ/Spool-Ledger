@@ -52,15 +52,15 @@ impl ProcessController {
         }
         let started = clock.now_ms();
         loop {
+            if clock.now_ms().saturating_sub(started) >= timeout_ms {
+                return Err(AppError::BambuStillRunning);
+            }
             if backend
                 .bambu_processes()
                 .map_err(AppError::InvalidProfile)?
                 .is_empty()
             {
                 return Ok(CloseOutcome::Stopped);
-            }
-            if clock.now_ms().saturating_sub(started) >= timeout_ms {
-                return Err(AppError::BambuStillRunning);
             }
             clock.sleep_ms(poll_interval_ms.max(1));
         }
