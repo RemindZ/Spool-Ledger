@@ -8,6 +8,7 @@ pub mod platform;
 pub mod profiles;
 pub mod receipt;
 pub mod resolver;
+pub mod sync;
 pub mod targets;
 pub mod transaction;
 pub mod writer;
