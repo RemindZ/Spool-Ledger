@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.local-characterization/
+*.local.json
+.DS_Store
+Thumbs.db
