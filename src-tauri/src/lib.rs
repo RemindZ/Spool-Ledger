@@ -2,6 +2,8 @@ pub mod discovery;
 pub mod error;
 pub mod field_policy;
 pub mod model;
+pub mod naming;
+pub mod planner;
 pub mod platform;
 pub mod profiles;
 pub mod resolver;
