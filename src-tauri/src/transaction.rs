@@ -1,6 +1,6 @@
 use crate::AppError;
 use crate::planner::MigrationPlan;
-use crate::writer::StagedRun;
+use crate::writer::{ExpectedFileState, StagedRun};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -166,6 +166,19 @@ impl Transaction {
             let destination_path = guarded_destination(&destination_root, &artifact.relative_path)?;
             let pre_run_bytes = read_optional_file(&destination_path)?;
             let precondition_sha256 = pre_run_bytes.as_deref().map(sha256_bytes);
+            let precondition_matches = match &artifact.destination_precondition {
+                None => true,
+                Some(ExpectedFileState::Absent) => precondition_sha256.is_none(),
+                Some(ExpectedFileState::Matches(expected)) => {
+                    precondition_sha256.as_ref() == Some(expected)
+                }
+            };
+            if !precondition_matches {
+                return Err(AppError::Conflict(format!(
+                    "destination precondition mismatch: {}",
+                    artifact.relative_path.display()
+                )));
+            }
             entries.push(JournalEntry {
                 destination_path,
                 relative_path: artifact.relative_path.clone(),

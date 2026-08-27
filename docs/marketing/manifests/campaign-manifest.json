@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "brand": "spool-ledger",
+  "productRepo": "E:/RepositoryV2/Bambu Filament Migrator",
+  "destination": "E:/RepositoryV2/Bambu Filament Migrator/docs/marketing",
+  "intake": {
+    "uiPolish": false,
+    "audio": "music-and-voiceover",
+    "social": [
+      {
+        "platform": "x",
+        "count": 1
+      },
+      {
+        "platform": "linkedin",
+        "count": 1
+      }
+    ],
+    "checkpointMode": "full-auto"
+  },
+  "foundation": {
+    "brandOnboarded": true,
+    "briefGrounded": true,
+    "uiPolish": "skipped-by-intake"
+  },
+  "assets": [
+    {
+      "id": "logo-reveal",
+      "skill": "/logo-reveal",
+      "status": "delivered",
+      "output": "logo-reveal.mp4",
+      "duration": "5.00s",
+      "proofStills": [
+        "stills/logo-30.png",
+        "stills/logo-80.png",
+        "stills/logo-130.png"
+      ],
+      "purpose": "Short brand intro and reusable end-card treatment"
+    },
+    {
+      "id": "product-demo",
+      "skill": "/product-demo",
+      "status": "delivered",
+      "output": "demo.mp4",
+      "duration": "50.13s",
+      "proofStills": [
+        "stills/demo-05.png",
+        "stills/demo-25.png",
+        "stills/demo-45.png"
+      ],
+      "purpose": "Product showcase using the approved live workflow recording"
+    },
+    {
+      "id": "launch-video",
+      "skill": "/launch-video",
+      "status": "delivered",
+      "output": "launch.mp4",
+      "duration": "48.04s",
+      "proofStills": [
+        "marketing/stills/LaunchVideo-logo.png",
+        "marketing/stills/LaunchVideo-demo.png",
+        "marketing/stills/LaunchVideo-feature-2.png",
+        "marketing/stills/LaunchVideo-end.png"
+      ],
+      "purpose": "Primary promo and launch video"
+    },
+    {
+      "id": "audio-track",
+      "skill": "/audio-track",
+      "status": "delivered",
+      "output": "launch-audio.mp4",
+      "duration": "48.04s",
+      "audio": {
+        "voice": "ElevenLabs dXtC3XhB9GtPusIpNtQx",
+        "music": "ElevenLabs Music"
+      },
+      "purpose": "Launch cut with music and narration"
+    },
+    {
+      "id": "launch-video-v2",
+      "skill": "/launch-video",
+      "status": "delivered",
+      "output": "launch-v2-final.mp4",
+      "duration": "48.04s",
+      "proofStills": [
+        "stills/v2-final-08.png",
+        "stills/v2-final-15.png",
+        "stills/v2-final-30.png",
+        "stills/v2-final-38.png",
+        "stills/v2-final-45.png"
+      ],
+      "audio": {
+        "voice": "ElevenLabs dXtC3XhB9GtPusIpNtQx",
+        "music": "ElevenLabs Music"
+      },
+      "purpose": "Plain-language V2 focused on saved setup time, Orca profile choice, and convenience"
+    },
+    {
+      "id": "social-x",
+      "skill": "/social-clip",
+      "status": "delivered",
+      "output": "social-x.mp4",
+      "duration": "10.05s",
+      "purpose": "X launch clip"
+    },
+    {
+      "id": "social-linkedin",
+      "skill": "/social-clip",
+      "status": "delivered",
+      "output": "social-linkedin.mp4",
+      "duration": "10.05s",
+      "purpose": "LinkedIn product clip"
+    },
+    {
+      "id": "og-assets",
+      "skill": "/og-assets",
+      "status": "delivered",
+      "output": {
+        "static": "og-image.png",
+        "animatedLoop": "og.mp4",
+        "animatedGif": "og.gif",
+        "readmeGif": "readme.gif"
+      },
+      "duration": "8.04s",
+      "purpose": "README, link preview, poster, and social card graphics"
+    }
+  ],
+  "exports": [
+    {
+      "id": "launch-16x9",
+      "path": "out/spool-ledger/matrix/launch-16x9.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 1027257
+    },
+    {
+      "id": "launch-9x16",
+      "path": "out/spool-ledger/matrix/launch-9x16.png",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 972518
+    },
+    {
+      "id": "launch-9x16-captioned",
+      "path": "out/spool-ledger/matrix/launch-9x16-captioned.png",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 1010382
+    },
+    {
+      "id": "launch-1x1",
+      "path": "out/spool-ledger/matrix/launch-1x1.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 645596
+    },
+    {
+      "id": "launch-1x1-captioned",
+      "path": "out/spool-ledger/matrix/launch-1x1-captioned.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 683167
+    },
+    {
+      "id": "launch-4x5",
+      "path": "out/spool-ledger/matrix/launch-4x5.png",
+      "width": 1080,
+      "height": 1350,
+      "bytes": 720365
+    },
+    {
+      "id": "social-16x9",
+      "path": "out/spool-ledger/matrix/social-16x9.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 2563809
+    },
+    {
+      "id": "social-9x16",
+      "path": "out/spool-ledger/matrix/social-9x16.png",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 2451267
+    },
+    {
+      "id": "social-9x16-captioned",
+      "path": "out/spool-ledger/matrix/social-9x16-captioned.png",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 2462361
+    },
+    {
+      "id": "social-1x1",
+      "path": "out/spool-ledger/matrix/social-1x1.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 1521910
+    },
+    {
+      "id": "social-1x1-captioned",
+      "path": "out/spool-ledger/matrix/social-1x1-captioned.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 1533335
+    },
+    {
+      "id": "social-4x5",
+      "path": "out/spool-ledger/matrix/social-4x5.png",
+      "width": 1080,
+      "height": 1350,
+      "bytes": 1789743
+    }
+  ],
+  "deviations": [
+    "Executor subagents were unavailable because the local plugin cache is not a valid Git worktree; the main session executes the serial asset recipes.",
+    "The approved existing live product recording is reused instead of capturing the application again.",
+    "Responsive exports are proof-card stills because the requested platforms are X and LinkedIn; no unrequested vertical video suite was rendered.",
+    "GPT Image 2 was not used because inspected real product imagery and the procedural brand ground were more faithful than a generated backdrop."
+  ]
+}

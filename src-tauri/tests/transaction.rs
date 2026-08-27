@@ -4,7 +4,7 @@ use bambu_filament_migrator::transaction::{
     FileAction, RollbackStatus, Transaction, TransactionOptions,
 };
 use bambu_filament_migrator::writer::{
-    GeneratedArtifact, GeneratedArtifactKind, StagedDeletion, StagedRun,
+    ExpectedFileState, GeneratedArtifact, GeneratedArtifactKind, StagedDeletion, StagedRun,
 };
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -31,6 +31,7 @@ fn staged(root: &Path, writes: &[(&str, &[u8])], deletes: &[(&str, &[u8])]) -> S
             kind: GeneratedArtifactKind::CustomProfile,
             operation_ids: vec![format!("write:{relative}")],
             relative_path: PathBuf::from(relative),
+            destination_precondition: None,
             sha256: hash(bytes),
             size: bytes.len() as u64,
         });
@@ -284,5 +285,30 @@ fn receipt_and_restore_preview_round_trip_without_applying_backup() {
     assert_eq!(
         std::fs::read(destination.join("filament/existing.json")).unwrap(),
         b"new"
+    );
+}
+
+#[test]
+fn preflight_rejects_a_destination_created_after_planning() {
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("account");
+    let stage_root = temp.path().join("stage");
+    let run_root = temp.path().join("run");
+    std::fs::create_dir_all(destination.join("filament")).unwrap();
+    let mut staged = staged(&stage_root, &[("filament/new.json", b"planned")], &[]);
+    staged.artifacts[0].destination_precondition = Some(ExpectedFileState::Absent);
+    std::fs::write(destination.join("filament/new.json"), b"appeared").unwrap();
+
+    let error =
+        Transaction::preflight(&plan(), &staged, &destination, &run_root, options()).unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("destination precondition mismatch")
+    );
+    assert_eq!(
+        std::fs::read(destination.join("filament/new.json")).unwrap(),
+        b"appeared"
     );
 }

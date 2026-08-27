@@ -6,8 +6,8 @@ use bambu_filament_migrator::planner::{
 use bambu_filament_migrator::profiles::InfoSidecar;
 use bambu_filament_migrator::resolver::{CatalogRoot, ProfileCatalog};
 use bambu_filament_migrator::writer::{
-    BambuAdapter, GeneratedArtifactKind, Writer, WriterContext, effective_settings_fingerprint,
-    material_settings_fingerprint,
+    BambuAdapter, GeneratedArtifactKind, TargetProfileReference, Writer, WriterContext,
+    effective_settings_fingerprint, material_settings_fingerprint,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -63,7 +63,30 @@ fn request(source_catalog: &ProfileCatalog, nozzles: &[&str]) -> MigrationReques
             .collect(),
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
+    }
+}
+
+fn context_for<'a>(
+    source_catalog: &'a ProfileCatalog,
+    target_catalog: &'a ProfileCatalog,
+    source_name: &str,
+) -> WriterContext<'a> {
+    WriterContext {
+        sources: BTreeMap::from([(
+            ProfileId::new(source_name),
+            source_catalog.resolve_name(source_name).unwrap(),
+        )]),
+        targets: target_catalog,
+        target_profiles: BTreeMap::from([(
+            "official:H2C".to_owned(),
+            TargetProfileReference::Catalog("Generic PLA @BBL H2C".to_owned()),
+        )]),
+        adapter: BambuAdapter::v2_0_0_56(),
+        outputs: bambu_filament_migrator::writer::OutputSelection::default(),
+        updated_time: 1_787_140_000,
+        existing_sidecars: BTreeMap::new(),
+        existing_normal_compatibility: BTreeMap::new(),
     }
 }
 
@@ -71,17 +94,11 @@ fn context<'a>(
     source_catalog: &'a ProfileCatalog,
     target_catalog: &'a ProfileCatalog,
 ) -> WriterContext<'a> {
-    WriterContext {
-        sources: source_catalog,
-        targets: target_catalog,
-        target_profiles: BTreeMap::from([(
-            "official:H2C".to_owned(),
-            "Generic PLA @BBL H2C".to_owned(),
-        )]),
-        adapter: BambuAdapter::v2_0_0_56(),
-        updated_time: 1_787_140_000,
-        existing_sidecars: BTreeMap::new(),
-    }
+    context_for(
+        source_catalog,
+        target_catalog,
+        "Northstar PLA Aurora @BBL X1C",
+    )
 }
 
 fn read_json(path: &Path) -> Value {
@@ -311,14 +328,90 @@ fn unclassified_cross_application_field_blocks_staging() {
         }],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let plan = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let temp = tempfile::tempdir().unwrap();
     let stage = temp.path().join("stage");
-    let error = Writer::stage(&plan, &context(&sources, &targets), &stage).unwrap_err();
+    let error = Writer::stage(
+        &plan,
+        &context_for(&sources, &targets, "Unknown PLA"),
+        &stage,
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("unreviewed_orca_knob"));
     assert!(!stage.exists());
+}
+
+#[test]
+fn characterized_fan_fields_survive_cross_application_transfer() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("Cooling PLA.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "type": "filament",
+            "name": "Cooling PLA",
+            "instantiation": "true",
+            "filament_vendor": ["Synthetic"],
+            "filament_type": ["PLA"],
+            "nozzle_temperature": ["220"],
+            "first_x_layer_part_fan_speed": ["41"],
+            "ironing_fan_speed": ["62"]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let sources =
+        ProfileCatalog::load_roots(&[CatalogRoot::system(root.path(), SourceApp::OrcaSlicer)])
+            .unwrap();
+    let (_, targets) = catalogs();
+    let effective = sources.resolve_name("Cooling PLA").unwrap();
+    let migration = MigrationRequest {
+        sources: vec![MigrationSource {
+            id: ProfileId::new("Cooling PLA"),
+            name: "Cooling PLA".to_owned(),
+            vendor: "Synthetic".to_owned(),
+            material: "PLA".to_owned(),
+            family: "Cooling".to_owned(),
+            variant: String::new(),
+            source_app: SourceApp::OrcaSlicer,
+            source_kind: SourceKind::FactorySystem,
+            compatible_printers: BTreeSet::new(),
+            migration_status: MigrationStatus::New,
+            source_precondition_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
+            existing_filament_id: None,
+        }],
+        targets: vec![TargetSelection {
+            printer_id: "official:H2C".to_owned(),
+            printer_name: "Bambu Lab H2C".to_owned(),
+            printer_code: "H2C".to_owned(),
+            nozzle: "0.4".to_owned(),
+            printer_preset_name: "Bambu Lab H2C 0.4 nozzle".to_owned(),
+            custom_unverified: false,
+        }],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "0000000000".to_owned(),
+    };
+    let plan = Planner::build(&migration, &DestinationIndex::default()).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let stage = temp.path().join("stage");
+
+    Writer::stage(
+        &plan,
+        &context_for(&sources, &targets, "Cooling PLA"),
+        &stage,
+    )
+    .unwrap();
+
+    let custom = read_json(
+        &stage.join("filament/base/Synthetic PLA Cooling @Bambu Lab H2C 0.4 nozzle.json"),
+    );
+    assert_eq!(
+        custom["first_x_layer_part_fan_speed"],
+        serde_json::json!(["41"])
+    );
+    assert_eq!(custom["ironing_fan_speed"], serde_json::json!(["62"]));
 }
 
 #[test]

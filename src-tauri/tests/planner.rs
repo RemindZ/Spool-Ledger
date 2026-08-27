@@ -4,8 +4,9 @@ use bambu_filament_migrator::naming::{
     RuleCondition, RuleConditionSpec, RulePatternKind,
 };
 use bambu_filament_migrator::planner::{
-    DestinationIndex, ExistingDestination, FilterQuery, IdentityFingerprint, MigrationRequest,
-    MigrationSource, NameOverride, NamingOptions, Planner, TargetSelection,
+    ConflictChoice, ConflictDecision, DestinationIndex, ExistingDestination, FilterQuery,
+    IdentityFingerprint, MaterialFingerprintIndex, MigrationRequest, MigrationSource, NameOverride,
+    NamingOptions, Planner, TargetSelection,
 };
 
 fn source(name: &str) -> MigrationSource {
@@ -117,7 +118,7 @@ fn planner_applies_ordered_rules_then_exact_row_override() {
         targets: vec![target("0.4"), target("0.6")],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let options = NamingOptions {
         preset_rules: vec![ReplacementRuleSpec {
@@ -144,6 +145,7 @@ fn planner_applies_ordered_rules_then_exact_row_override() {
             preset_name: Some("Hand tuned 0.6".to_owned()),
             ams_name: None,
         }],
+        conflict_decisions: vec![],
     };
     let plan =
         Planner::build_with_naming(&request, &DestinationIndex::default(), &options).unwrap();
@@ -215,7 +217,7 @@ fn planner_is_deterministic_and_selects_only_requested_nozzles() {
         targets: vec![target("0.8"), target("0.4")],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let first = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let second = Planner::build(&request, &DestinationIndex::default()).unwrap();
@@ -241,7 +243,7 @@ fn case_only_identity_collision_blocks_but_missing_target_is_created() {
         targets: vec![target("0.4"), target("0.6")],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let preview = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let existing = DestinationIndex::from_existing([ExistingDestination {
@@ -277,7 +279,7 @@ fn generated_id_collision_blocks_every_conflicting_identity() {
         targets: vec![target("0.4")],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let plan = Planner::build(&request, &DestinationIndex::default()).unwrap();
     assert_eq!(plan.operations.len(), 2);
@@ -295,13 +297,56 @@ fn generated_id_collision_blocks_every_conflicting_identity() {
 }
 
 #[test]
+fn one_identity_allows_target_specific_material_fingerprints() {
+    let source = source("Panchroma PLA Satin");
+    let first_target = target("0.4");
+    let second_target = target("0.6");
+    let fingerprints = MaterialFingerprintIndex::from([
+        (
+            (source.id.clone(), first_target.printer_preset_name.clone()),
+            "target-settings-0.4".to_owned(),
+        ),
+        (
+            (source.id.clone(), second_target.printer_preset_name.clone()),
+            "target-settings-0.6".to_owned(),
+        ),
+    ]);
+    let request = MigrationRequest {
+        sources: vec![source],
+        targets: vec![first_target, second_target],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "0000000000".to_owned(),
+    };
+
+    let plan = Planner::build_with_context(
+        &request,
+        &DestinationIndex::default(),
+        &NamingOptions::default(),
+        &fingerprints,
+    )
+    .unwrap();
+
+    assert_eq!(plan.operations.len(), 2);
+    assert!(
+        plan.operations
+            .iter()
+            .all(|operation| operation.action.as_str() == "create")
+    );
+    assert_eq!(
+        plan.operations[0].filament_id,
+        plan.operations[1].filament_id
+    );
+}
+
+#[test]
 fn equivalent_destination_is_skipped_but_different_settings_conflict() {
     let request = MigrationRequest {
         sources: vec![source("Panchroma PLA Satin")],
         targets: vec![target("0.4")],
         preset_template: "{clean_name} - {printer_code}".to_owned(),
         ams_template: "{vendor} {material} {clean_name}".to_owned(),
-        user_id: "2182110758".to_owned(),
+        user_id: "0000000000".to_owned(),
     };
     let preview = Planner::build(&request, &DestinationIndex::default()).unwrap();
     let operation = &preview.operations[0];
@@ -323,4 +368,44 @@ fn equivalent_destination_is_skipped_but_different_settings_conflict() {
     let blocked = Planner::build(&request, &conflict).unwrap();
     assert_eq!(blocked.operations[0].action.as_str(), "block");
     assert!(blocked.operations[0].conflict.is_some());
+}
+
+#[test]
+fn explicit_conflict_decisions_update_or_skip_settings_mismatches() {
+    let request = MigrationRequest {
+        sources: vec![source("Panchroma PLA Satin")],
+        targets: vec![target("0.4")],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "0000000000".to_owned(),
+    };
+    let preview = Planner::build(&request, &DestinationIndex::default()).unwrap();
+    let operation = &preview.operations[0];
+    let destinations = DestinationIndex::from_existing([ExistingDestination {
+        name: operation.ams_name.clone(),
+        material_settings_fingerprint: "changed-settings".to_owned(),
+        filament_id: operation.filament_id.clone(),
+        printer_preset_name: operation.printer_preset_name.clone(),
+    }]);
+    let decision = |choice| NamingOptions {
+        conflict_decisions: vec![ConflictDecision {
+            source_id: operation.source_id.clone(),
+            printer_id: operation.printer_id.clone(),
+            nozzle: operation.nozzle.clone(),
+            choice,
+        }],
+        ..NamingOptions::default()
+    };
+
+    let updated =
+        Planner::build_with_naming(&request, &destinations, &decision(ConflictChoice::Update))
+            .unwrap();
+    assert_eq!(updated.operations[0].action.as_str(), "update");
+    assert!(updated.operations[0].conflict.is_none());
+
+    let skipped =
+        Planner::build_with_naming(&request, &destinations, &decision(ConflictChoice::Skip))
+            .unwrap();
+    assert_eq!(skipped.operations[0].action.as_str(), "skip");
+    assert!(skipped.operations[0].conflict.is_none());
 }

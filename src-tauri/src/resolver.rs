@@ -24,12 +24,39 @@ impl CatalogRoot {
         }
     }
 
+    pub fn vendor_system(path: impl Into<PathBuf>, source_app: SourceApp) -> Self {
+        Self {
+            path: path.into(),
+            source_app,
+            source_kind: SourceKind::FactorySystem,
+            priority: 20,
+        }
+    }
+
+    pub fn filament_library(path: impl Into<PathBuf>, source_app: SourceApp) -> Self {
+        Self {
+            path: path.into(),
+            source_app,
+            source_kind: SourceKind::FactorySystem,
+            priority: 30,
+        }
+    }
+
     pub fn user(path: impl Into<PathBuf>, source_app: SourceApp) -> Self {
         Self {
             path: path.into(),
             source_app,
             source_kind: SourceKind::UserCustom,
             priority: 100,
+        }
+    }
+
+    pub fn default_local_user(path: impl Into<PathBuf>, source_app: SourceApp) -> Self {
+        Self {
+            path: path.into(),
+            source_app,
+            source_kind: SourceKind::UserCustom,
+            priority: 90,
         }
     }
 }
@@ -43,6 +70,7 @@ pub struct ProfileRecord {
     pub source_kind: SourceKind,
     pub instantiable: bool,
     document: ProfileDocument,
+    root_path: PathBuf,
     priority: u8,
 }
 
@@ -92,10 +120,18 @@ impl EffectiveProfile {
 #[derive(Debug, Clone, Default)]
 pub struct ProfileCatalog {
     profiles: BTreeMap<String, ProfileRecord>,
+    profiles_by_root: BTreeMap<PathBuf, BTreeMap<String, ProfileRecord>>,
 }
 
 impl ProfileCatalog {
     pub fn load_roots(roots: &[CatalogRoot]) -> Result<Self, AppError> {
+        Self::load_roots_with_progress(roots, || {})
+    }
+
+    pub fn load_roots_with_progress(
+        roots: &[CatalogRoot],
+        mut on_file: impl FnMut(),
+    ) -> Result<Self, AppError> {
         let mut catalog = Self::default();
         for root in roots {
             if !root.path.exists() {
@@ -118,6 +154,7 @@ impl ProfileCatalog {
             paths.sort();
             for path in paths {
                 let document = ProfileDocument::load(&path)?;
+                on_file();
                 let Some(name) = document.name().map(str::to_owned) else {
                     continue;
                 };
@@ -132,8 +169,21 @@ impl ProfileCatalog {
                     source_kind: root.source_kind,
                     instantiable: document.is_instantiable(),
                     document,
+                    root_path: root.path.clone(),
                     priority: root.priority,
                 };
+                if let Some(existing) = catalog
+                    .profiles_by_root
+                    .entry(root.path.clone())
+                    .or_default()
+                    .insert(name.clone(), record.clone())
+                {
+                    return Err(AppError::InvalidProfile(format!(
+                        "ambiguous profile name {name}: {} and {}",
+                        existing.path.display(),
+                        record.path.display()
+                    )));
+                }
                 match catalog.profiles.get(&name) {
                     Some(existing) if existing.priority == record.priority => {
                         return Err(AppError::InvalidProfile(format!(
@@ -169,7 +219,7 @@ impl ProfileCatalog {
             .get(name)
             .ok_or_else(|| AppError::InvalidProfile(format!("profile not found: {name}")))?;
         let mut stack = Vec::new();
-        let (values, provenance) = self.resolve_inner(name, &mut stack)?;
+        let (values, provenance) = self.resolve_inner(name, &source.root_path, &mut stack)?;
         Ok(EffectiveProfile {
             id: source.id.clone(),
             name: source.name.clone(),
@@ -184,6 +234,7 @@ impl ProfileCatalog {
     fn resolve_inner(
         &self,
         name: &str,
+        preferred_root: &Path,
         stack: &mut Vec<String>,
     ) -> Result<ResolvedValues, AppError> {
         if let Some(position) = stack.iter().position(|item| item == name) {
@@ -194,9 +245,15 @@ impl ProfileCatalog {
                 cycle.join(" -> ")
             )));
         }
-        let profile = self.profiles.get(name).ok_or_else(|| {
-            AppError::InvalidProfile(format!("missing parent or include: {name}"))
-        })?;
+        let profile = self
+            .profiles_by_root
+            .get(preferred_root)
+            .and_then(|profiles| profiles.get(name))
+            .or_else(|| self.profiles.get(name))
+            .ok_or_else(|| {
+                AppError::InvalidProfile(format!("missing parent or include: {name}"))
+            })?;
+        let profile_root = profile.root_path.clone();
         stack.push(name.to_owned());
         let mut resolved = ResolvedAccumulator::default();
 
@@ -205,7 +262,7 @@ impl ProfileCatalog {
             .inherits()
             .filter(|value| !value.is_empty())
         {
-            resolved.merge(self.resolve_inner(parent, stack)?);
+            resolved.merge(self.resolve_inner(parent, &profile_root, stack)?);
         }
         if let Some(includes) = profile
             .document
@@ -214,7 +271,7 @@ impl ProfileCatalog {
             .and_then(Value::as_array)
         {
             for include in includes.iter().filter_map(Value::as_str) {
-                resolved.merge(self.resolve_inner(include, stack)?);
+                resolved.merge(self.resolve_inner(include, &profile_root, stack)?);
             }
         }
         if let Some(object) = profile.document.value.as_object() {

@@ -1,0 +1,92 @@
+{
+  "judge": "av-sync",
+  "brand": "spool-ledger",
+  "generatedAt": "2026-08-26T07:32:16.152Z",
+  "verdict": "PASS",
+  "inputs": {
+    "launch": "props/spool-ledger-launch.json",
+    "audio": "props/spool-ledger-audio.json",
+    "telemetry": "props/spool-ledger-demo.json"
+  },
+  "timing": {
+    "logo": {
+      "from": 0,
+      "len": 150
+    },
+    "hook": {
+      "from": 150,
+      "len": 210
+    },
+    "demo": {
+      "from": 360,
+      "len": 240
+    },
+    "features": [
+      {
+        "from": 600,
+        "len": 210
+      },
+      {
+        "from": 810,
+        "len": 240
+      },
+      {
+        "from": 1050,
+        "len": 210
+      }
+    ],
+    "end": {
+      "from": 1260,
+      "len": 180
+    },
+    "total": 1440
+  },
+  "summary": {
+    "voLines": 7,
+    "wordLines": 7,
+    "estimatedWordLines": 0,
+    "cuedActs": 4,
+    "features": 3,
+    "captionSteps": 0,
+    "findings": 5
+  },
+  "findings": [
+    {
+      "check": "cue-unmatched",
+      "level": "WARN",
+      "act": "hook",
+      "unmatched": 4,
+      "message": "4 on-screen unit(s) in act \"hook\" have no matching VO word; they keep the stagger cascade."
+    },
+    {
+      "check": "cue-front-loaded",
+      "level": "WARN",
+      "act": "hook",
+      "early": 5,
+      "total": 6,
+      "message": "5/6 cues in act \"hook\" land in the first half; weight reveals to the back half."
+    },
+    {
+      "check": "cue-unmatched",
+      "level": "WARN",
+      "act": "feature-0",
+      "unmatched": 3,
+      "message": "3 on-screen unit(s) in act \"feature-0\" have no matching VO word; they keep the stagger cascade."
+    },
+    {
+      "check": "cue-front-loaded",
+      "level": "WARN",
+      "act": "feature-1",
+      "early": 3,
+      "total": 3,
+      "message": "3/3 cues in act \"feature-1\" land in the first half; weight reveals to the back half."
+    },
+    {
+      "check": "cue-unmatched",
+      "level": "WARN",
+      "act": "feature-2",
+      "unmatched": 3,
+      "message": "3 on-screen unit(s) in act \"feature-2\" have no matching VO word; they keep the stagger cascade."
+    }
+  ]
+}

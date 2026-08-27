@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import NamingPanel from "../components/NamingPanel.svelte";
 import PlanTable from "../components/PlanTable.svelte";
@@ -18,14 +24,24 @@ const printers: PrinterTarget[] = [
     code: "H2C",
     kind: "official",
     verified: true,
+    artwork_available: false,
     extruder_variants: ["Direct Drive Standard", "Direct Drive High Flow"],
-    nozzles: ["0.2", "0.4"].map((diameter) => ({
-      id: `H2C:${diameter}`,
-      diameter,
-      printer_preset_name: `Bambu Lab H2C ${diameter} nozzle`,
-      selected: false,
-      supported: true,
-    })),
+    nozzles: [
+      ...["0.2", "0.4"].map((diameter) => ({
+        id: `H2C:${diameter}`,
+        diameter,
+        printer_preset_name: `Bambu Lab H2C ${diameter} nozzle`,
+        selected: false,
+        supported: true,
+      })),
+      {
+        id: "H2C:1.0",
+        diameter: "1.0",
+        printer_preset_name: "Bambu Lab H2C 1.0 nozzle",
+        selected: false,
+        supported: false,
+      },
+    ],
   },
   {
     id: "custom:Workshop",
@@ -33,6 +49,7 @@ const printers: PrinterTarget[] = [
     code: "WC",
     kind: "custom",
     verified: false,
+    artwork_available: false,
     extruder_variants: ["Unknown custom target"],
     nozzles: [
       {
@@ -79,28 +96,30 @@ const plan: MigrationPlan = {
 };
 
 describe("workflow panels", () => {
-  it("hides custom printers until explicitly enabled and marks them unverified", async () => {
-    const onNozzleToggle = vi.fn();
-    const onSelectAll = vi.fn();
-    const { rerender } = render(TargetPanel, {
+  it("renders enabled official targets only and opens printer management", async () => {
+    const onManage = vi.fn();
+    render(TargetPanel, {
       props: {
+        catalogId: "targets:1",
         printers,
+        enabledPrinterIds: new Set(["official:H2C"]),
         selectedNozzles: {},
-        showCustom: false,
-        onNozzleToggle,
-        onSelectAll,
+        onManage,
+        onNozzleToggle: vi.fn(),
+        onSelectAll: vi.fn(),
       },
     });
+
+    expect(screen.getByText("Bambu Lab H2C")).toBeInTheDocument();
     expect(screen.queryByText("Workshop CoreXY")).not.toBeInTheDocument();
-    await rerender({
-      printers,
-      selectedNozzles: {},
-      showCustom: true,
-      onNozzleToggle,
-      onSelectAll,
-    });
-    expect(screen.getByText("Workshop CoreXY")).toBeInTheDocument();
-    expect(screen.getByText("Unverified custom printer")).toBeInTheDocument();
+    expect(screen.getByLabelText("1.0 mm")).toBeDisabled();
+    expect(
+      screen.getByText("Unavailable for this official printer"),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Manage enabled printers" }),
+    );
+    expect(onManage).toHaveBeenCalledOnce();
   });
 
   it("selects nozzles independently and exposes explicit select-all", async () => {
@@ -108,9 +127,11 @@ describe("workflow panels", () => {
     const onSelectAll = vi.fn();
     render(TargetPanel, {
       props: {
+        catalogId: "targets:1",
         printers,
+        enabledPrinterIds: new Set(["official:H2C"]),
         selectedNozzles: {},
-        showCustom: false,
+        onManage: vi.fn(),
         onNozzleToggle,
         onSelectAll,
       },
@@ -128,6 +149,7 @@ describe("workflow panels", () => {
   it("keeps slicing and AMS templates separate with live rule and preset controls", async () => {
     const onTemplatesChanged = vi.fn();
     const onRulesChanged = vi.fn();
+    const onOutputsChanged = vi.fn();
     const onSavePreset = vi.fn();
     render(NamingPanel, {
       props: {
@@ -144,6 +166,7 @@ describe("workflow panels", () => {
         },
         onTemplatesChanged,
         onRulesChanged,
+        onOutputsChanged,
         onSavePreset,
       },
     });
@@ -152,13 +175,15 @@ describe("workflow panels", () => {
       screen.getByText("Polymaker PLA Panchroma Satin"),
     ).toBeInTheDocument();
     expect(screen.getByText("Advanced naming rules")).toBeInTheDocument();
-    await fireEvent.input(
-      screen.getByLabelText("Bambu slicing preset template"),
-      {
-        target: { value: "{clean_name}" },
-      },
+    await fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove {printer_code} from Bambu slicing preset template",
+      }),
     );
-    expect(onTemplatesChanged).toHaveBeenCalled();
+    expect(onTemplatesChanged).toHaveBeenCalledWith(
+      "{clean_name} - ",
+      "{vendor} {material} {clean_name}",
+    );
 
     await fireEvent.click(screen.getByText("Advanced naming rules"));
     await fireEvent.input(screen.getByLabelText("Rule pattern"), {
@@ -187,11 +212,88 @@ describe("workflow panels", () => {
       screen.getByRole("button", { name: "Save naming preset" }),
     );
     expect(onSavePreset).toHaveBeenCalledWith("Panchroma clean");
+
+    await fireEvent.click(screen.getByText("Advanced outputs"));
+    await fireEvent.click(
+      screen.getByLabelText("Create Bambu slicing presets"),
+    );
+    expect(onOutputsChanged).toHaveBeenCalledWith({
+      slicing_presets: false,
+      custom_filaments: true,
+    });
+
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.removeAttribute("open");
+    };
+    await fireEvent.click(screen.getByRole("button", { name: "Naming help" }));
+    const help = screen.getByRole("dialog", {
+      name: "Naming templates and rules",
+    });
+    expect(help).toHaveTextContent(
+      "Preview names always come from the migration engine",
+    );
+    expect(within(help).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(help).getByRole("button", { name: "Close" }),
+    ).toBeInTheDocument();
   });
 
-  it("shows every target, blocks conflicts, and emits inline name overrides", async () => {
+  it("inserts every real naming token into the active scoped composer", async () => {
+    const onTemplatesChanged = vi.fn();
+    render(NamingPanel, {
+      props: {
+        presetTemplate: "{clean_name}",
+        amsTemplate: "{vendor} @{printer_code}",
+        presetRules: [],
+        amsRules: [],
+        savedPresets: [],
+        preview: null,
+        onTemplatesChanged,
+        onRulesChanged: vi.fn(),
+        onOutputsChanged: vi.fn(),
+        onSavePreset: vi.fn(),
+      },
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Insert Source name into active template",
+      }),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", {
+        name: "Insert Family into active template",
+      }),
+    );
+    expect(onTemplatesChanged).toHaveBeenLastCalledWith(
+      "{clean_name}{family}",
+      "{vendor} @{printer_code}",
+    );
+
+    await fireEvent.focusIn(
+      screen.getByLabelText("AMS custom filament template text 1"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Insert Printer code into active template",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Remove slicing-only @, {printer_code} from this AMS template.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows every target, blocks conflicts, and emits inline resolutions", async () => {
     const onOverride = vi.fn();
-    render(PlanTable, { props: { plan, onOverride } });
+    const onDecision = vi.fn();
+    render(PlanTable, {
+      props: { plan, onOverride, onDecision, conflictDecisions: [] },
+    });
     expect(screen.getByText("Bambu Lab H2C 0.4 nozzle")).toBeInTheDocument();
     expect(screen.getByText("Blocked")).toBeInTheDocument();
     expect(screen.getByText("Existing settings differ")).toBeInTheDocument();
@@ -204,12 +306,31 @@ describe("workflow panels", () => {
       "Satin hand tuned",
       "Polymaker PLA Panchroma Satin",
     );
+    await fireEvent.change(
+      screen.getByLabelText("Conflict decision for Panchroma PLA Satin"),
+      { target: { value: "update" } },
+    );
+    expect(onDecision).toHaveBeenCalledWith("op-1", "update");
   });
 
-  it("does not claim AMS verification from a cloud ID", () => {
+  it("reports exact evidence counts without claiming AMS verification", () => {
+    const executablePlan: MigrationPlan = {
+      ...plan,
+      operations: [
+        { ...plan.operations[0], action: "create", conflict: null },
+        {
+          ...plan.operations[0],
+          id: "op-skip",
+          action: "skip",
+          conflict: null,
+          nozzle: "0.6",
+          printer_preset_name: "Bambu Lab H2C 0.6 nozzle",
+        },
+      ],
+    };
     render(RunProgress, {
       props: {
-        plan,
+        plan: executablePlan,
         progress: {
           "op-1": { evidence: "cloud_id_assigned", state: "cloud_id_assigned" },
         },
@@ -218,33 +339,96 @@ describe("workflow panels", () => {
     });
     expect(screen.getByText("Cloud ID assigned")).toBeInTheDocument();
     expect(screen.getByText("AMS check pending")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1 committed")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1 acknowledged")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1 IDs assigned")).toBeInTheDocument();
+    expect(screen.getByText("0 / 1 operator verified")).toBeInTheDocument();
+    expect(screen.getByText("Skipped")).toBeInTheDocument();
   });
 
-  it("previews restore impact and preserves externally changed paths", () => {
+  it("uses singular grammar for one committed local file", () => {
+    render(ResultSummary, {
+      props: {
+        result: {
+          run_id: "run-1",
+          plan_id: "plan-1",
+          committed_files: 1,
+          created_files: 1,
+          updated_files: 0,
+          deleted_files: 0,
+          skipped_operations: 0,
+          backup_sha256: "backup-sha256",
+          backup_file_count: 1,
+          receipt_path: "receipt.json",
+        },
+      },
+    });
+    expect(screen.getByText("1 local file committed")).toBeInTheDocument();
+    expect(screen.getByText("1 backup file")).toBeInTheDocument();
+    expect(screen.getByText("backup-sha256")).toBeInTheDocument();
+    expect(screen.queryByText(/checksum-verified/i)).not.toBeInTheDocument();
+  });
+
+  it("offers optional support without affecting the completed run", async () => {
+    const onOpenSupport = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValue(new Error("browser unavailable"));
+    render(ResultSummary, {
+      props: {
+        result: {
+          run_id: "run-1",
+          plan_id: "plan-1",
+          committed_files: 1,
+          created_files: 1,
+          updated_files: 0,
+          deleted_files: 0,
+          skipped_operations: 0,
+          backup_sha256: "backup-sha256",
+          backup_file_count: 1,
+          receipt_path: "receipt.json",
+        },
+        onOpenSupport,
+      },
+    });
+
+    expect(
+      screen.getByText(/Spool Ledger is free and open source/i),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Buy me a coffee" }),
+    );
+    expect(onOpenSupport).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not open the support page",
+    );
+    expect(screen.getByText("1 local file committed")).toBeInTheDocument();
+  });
+
+  it("links to restore without owning restore mutations", async () => {
+    const onOpenRestore = vi.fn();
     render(ResultSummary, {
       props: {
         result: {
           run_id: "run-1",
           plan_id: "plan-1",
           committed_files: 3,
+          created_files: 2,
+          updated_files: 1,
+          deleted_files: 0,
+          skipped_operations: 1,
+          backup_sha256: "backup-sha256",
+          backup_file_count: 3,
           receipt_path: "receipt.json",
         },
-        restorePreview: {
-          paths: [
-            {
-              path: "filament/base/changed.info",
-              action: "update",
-              safe_to_restore: false,
-              current_sha256: "external",
-              expected_committed_sha256: "owned",
-            },
-          ],
-        },
+        onOpenRestore,
       },
     });
+
     expect(screen.getByText("3 local files committed")).toBeInTheDocument();
-    expect(
-      screen.getByText("Externally changed - preserve"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Ready to restore")).not.toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Open journal-owned restore" }),
+    );
+    expect(onOpenRestore).toHaveBeenCalledOnce();
   });
 });

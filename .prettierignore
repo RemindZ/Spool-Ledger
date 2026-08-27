@@ -1,4 +1,6 @@
 docs/
+design-v2/
+DESIGN.md
 fixtures/
 src-tauri/
 SCOPE.md

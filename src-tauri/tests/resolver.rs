@@ -77,6 +77,58 @@ fn inheritance_cycle_is_blocking() {
 }
 
 #[test]
+fn unrelated_equal_priority_roots_remain_ambiguous() {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    std::fs::write(
+        first.path().join("Duplicate.json"),
+        r#"{"name":"Duplicate","filament_settings_id":["Duplicate"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        second.path().join("Duplicate.json"),
+        r#"{"name":"Duplicate","filament_settings_id":["Duplicate"]}"#,
+    )
+    .unwrap();
+
+    let error = ProfileCatalog::load_roots(&[
+        CatalogRoot::user(first.path(), SourceApp::OrcaSlicer),
+        CatalogRoot::user(second.path(), SourceApp::OrcaSlicer),
+    ])
+    .unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("ambiguous profile name Duplicate")
+    );
+}
+
+#[test]
+fn catalog_loading_reports_each_profile_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("One.json"),
+        r#"{"name":"One","filament_settings_id":["One"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("Two.json"),
+        r#"{"name":"Two","filament_settings_id":["Two"]}"#,
+    )
+    .unwrap();
+    let mut loaded = 0;
+
+    ProfileCatalog::load_roots_with_progress(
+        &[CatalogRoot::system(dir.path(), SourceApp::OrcaSlicer)],
+        || loaded += 1,
+    )
+    .unwrap();
+
+    assert_eq!(loaded, 2);
+}
+
+#[test]
 fn current_orca_material_fields_have_explicit_transfer_policies() {
     let policy = FieldPolicyTable::bundled().unwrap();
     for field in [
@@ -136,6 +188,19 @@ fn current_bambu_custom_profile_fields_have_explicit_policies() {
         policy.classify("default_filament_colour"),
         Some(FieldClass::Metadata)
     );
+}
+
+#[test]
+fn reported_fan_fields_are_characterized_as_source_material() {
+    let policy = FieldPolicyTable::bundled().unwrap();
+
+    for field in ["first_x_layer_part_fan_speed", "ironing_fan_speed"] {
+        assert_eq!(
+            policy.classify(field),
+            Some(FieldClass::SourceMaterial),
+            "{field}"
+        );
+    }
 }
 
 #[test]

@@ -1,0 +1,139 @@
+{
+  "brandId": "spool-ledger",
+  "hook": {
+    "headline": "Save time by bringing your Orca profiles with you",
+    "altHeadlines": [
+      "Stop setting up filament profiles one by one",
+      "Keep the filament choices you already use"
+    ],
+    "strategies": ["value", "contrarian", "story"]
+  },
+  "features": [
+    {
+      "key": "choose",
+      "heading": "Choose the profiles you want",
+      "benefitLines": [
+        "Built-in Orca profiles",
+        "Your own custom profiles",
+        "Only the printers and nozzles you use"
+      ],
+      "rationale": "Users can choose eligible built-in or custom Orca profiles and selected official printer and nozzle targets.",
+      "sourceRoute": "README.md#what-it-does"
+    },
+    {
+      "key": "save-time",
+      "heading": "Skip setting them up again",
+      "benefitLines": [
+        "Reuse settings you already tuned",
+        "Move several profiles together",
+        "Check the names before you start"
+      ],
+      "rationale": "The tool resolves existing settings and prepares multiple selected outputs in one reviewed plan.",
+      "sourceRoute": "README.md#workflow"
+    },
+    {
+      "key": "more-choice",
+      "heading": "More useful choices in Bambu Studio",
+      "benefitLines": [
+        "More than Bambu and Generic profiles",
+        "Bambu Studio updates its list as usual",
+        "Check the result in AMS"
+      ],
+      "rationale": "Local custom filament identities can be loaded by Bambu Studio and continue through its normal synchronization flow; AMS confirmation remains manual.",
+      "sourceRoute": "README.md#local-and-cloud-truth"
+    }
+  ],
+  "positioning": {
+    "differentiator": "Choose the built-in or custom Orca profiles you already use, bring several into Bambu Studio together, and avoid typing the same filament settings again."
+  },
+  "audience": {
+    "who": "Bambu users who want their preferred Orca filament profiles available alongside the usual Bambu and Generic choices.",
+    "painPoints": [
+      "Re-entering known filament settings one profile at a time takes unnecessary effort.",
+      "The default Bambu list may not include the Orca profiles a user already trusts.",
+      "Users want to choose only the filaments, printers, and nozzle sizes they actually use."
+    ]
+  },
+  "customerLanguage": {
+    "use": [
+      "profiles you already use",
+      "built-in or custom Orca profiles",
+      "skip setting them up again",
+      "check the names before you start",
+      "check the result in AMS"
+    ],
+    "avoid": [
+      "migration workstation",
+      "frozen deterministic plan",
+      "local output identity",
+      "automatic AMS sync",
+      "guaranteed cloud persistence"
+    ]
+  },
+  "objections": [
+    {
+      "objection": "Can I choose my own custom Orca profiles?",
+      "response": "Yes. Choose eligible built-in Orca profiles, your own custom profiles, or both."
+    },
+    {
+      "objection": "Does this put profiles into AMS automatically?",
+      "response": "No. Bambu Studio handles its usual update and sync, then you confirm the result in AMS."
+    },
+    {
+      "objection": "Will it change every profile it finds?",
+      "response": "No. You choose the profiles, printers, and nozzle sizes you want before you start."
+    }
+  ],
+  "switchingForces": {
+    "push": "Typing the same trusted settings again for each Bambu profile wastes effort.",
+    "pull": "Choose several existing Orca profiles and prepare them together.",
+    "habit": "Rebuilding profiles by hand is familiar even when it repeats work.",
+    "anxiety": "Users want to check names and choices before anything is prepared."
+  },
+  "proofPoints": [
+    {
+      "claim": "Users can filter and select eligible OrcaSlicer and Bambu Studio filament profiles.",
+      "source": "README.md#what-it-does"
+    },
+    {
+      "claim": "Users can create profiles for selected official printers and nozzle diameters.",
+      "source": "README.md#what-it-does"
+    },
+    {
+      "claim": "Bambu Studio performs its own normal synchronization and AMS verification remains operator-confirmed.",
+      "source": "README.md#local-and-cloud-truth"
+    }
+  ],
+  "cta": "Keep your Orca profiles",
+  "narration": [
+    {
+      "act": "logo",
+      "text": "Meet Spool Ledger."
+    },
+    {
+      "act": "hook",
+      "text": "Save time by bringing your Orca filament profiles with you instead of rebuilding them one by one."
+    },
+    {
+      "act": "demo",
+      "text": "Choose built-in or custom Orca profiles. Pick only the printers and nozzles you use."
+    },
+    {
+      "act": "feature-0",
+      "text": "Keep the filament choices you want and leave out the rest."
+    },
+    {
+      "act": "feature-1",
+      "text": "Reuse the settings you already tuned instead of typing them again."
+    },
+    {
+      "act": "feature-2",
+      "text": "See more than Bambu and Generic profiles. Bambu Studio updates, then you check AMS."
+    },
+    {
+      "act": "end",
+      "text": "Keep your Orca profiles. Download Spool Ledger."
+    }
+  ],
+  "social": null
+}

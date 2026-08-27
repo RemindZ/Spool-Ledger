@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import DiscoveryBar from "../components/DiscoveryBar.svelte";
+import AppChrome from "../components/AppChrome.svelte";
 import FilterPanel from "../components/FilterPanel.svelte";
 import SourceTable from "../components/SourceTable.svelte";
 import { createInitialState, sourceFacets, type SourceFilters } from "../state";
@@ -47,7 +47,11 @@ const sources: CatalogSource[] = [
 
 const discovery: DiscoveryResponse = {
   source_root_ids: ["orca-system", "bambu-user"],
+  manual_source_roots: [],
   target_catalog_ids: ["bambu-system"],
+  orca_slicer_detected: true,
+  bambu_studio_detected: true,
+  platform: "windows",
   accounts: [
     {
       id: "account-ready",
@@ -59,10 +63,10 @@ const discovery: DiscoveryResponse = {
 };
 
 describe("workspace controls", () => {
-  it("shows discovery counts, limits account choices to eligible roots, and changes theme", async () => {
+  it("shows truthful discovery, eligible accounts, source access, and segmented themes", async () => {
     const onAccountChanged = vi.fn();
     const onThemeChanged = vi.fn();
-    render(DiscoveryBar, {
+    render(AppChrome, {
       props: {
         discovery,
         selectedAccountId: "account-ready",
@@ -74,18 +78,24 @@ describe("workspace controls", () => {
       },
     });
 
-    expect(screen.getByText("2 source roots")).toBeInTheDocument();
+    expect(screen.getByText("OrcaSlicer detected")).toBeInTheDocument();
+    expect(screen.getByText("Bambu Studio detected")).toBeInTheDocument();
+    expect(screen.getByText("Windows build")).toBeInTheDocument();
+    expect(screen.getByText("Source folders")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /account-ready/ })).toBeEnabled();
     expect(
       screen.getByRole("option", { name: /account-backup/ }),
     ).toBeDisabled();
-    await fireEvent.change(screen.getByLabelText("Bambu account"), {
+    await fireEvent.change(screen.getByLabelText("Destination account"), {
       target: { value: "account-ready" },
     });
     expect(onAccountChanged).toHaveBeenCalledWith("account-ready");
-    await fireEvent.change(screen.getByLabelText("Theme"), {
-      target: { value: "dark" },
-    });
+
+    const theme = screen.getByRole("group", { name: "Theme" });
+    expect(
+      within(theme).getByRole("button", { name: "System" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await fireEvent.click(within(theme).getByRole("button", { name: "Dark" }));
     expect(onThemeChanged).toHaveBeenCalledWith("dark");
   });
 
@@ -112,9 +122,9 @@ describe("workspace controls", () => {
     expect(onFiltersChanged).toHaveBeenCalledWith({ search: "satin" });
 
     await fireEvent.click(screen.getByLabelText("OrcaSlicer"));
-    const update = onFiltersChanged.mock.calls.at(
-      -1,
-    )?.[0] as Partial<SourceFilters>;
+    const update = onFiltersChanged.mock.calls[
+      onFiltersChanged.mock.calls.length - 1
+    ]?.[0] as Partial<SourceFilters>;
     expect(update.sourceApps).toEqual(new Set(["orca_slicer"]));
     expect(filters.sourceApps.size).toBe(0);
 

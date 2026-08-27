@@ -11,11 +11,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "visual:check": "node scripts/validate-visual-fixture.mjs",
+    "release:check": "node scripts/validate-release.mjs",
+    "release:contract": "node scripts/release-contract.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
     "@lucide/svelte": "^1.33.0",
     "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-opener": "^2.5.4",
     "svelte": "^5.38.0"
   },
   "devDependencies": {

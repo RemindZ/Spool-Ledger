@@ -6,3 +6,4 @@ src-tauri/gen/
 *.local.json
 .DS_Store
 Thumbs.db
+spool-ledger-claude-code-handoff-*.zip

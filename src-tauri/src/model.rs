@@ -117,6 +117,8 @@ pub struct PrinterTarget {
     pub code: String,
     pub kind: PrinterPresetKind,
     pub verified: bool,
+    #[serde(default)]
+    pub artwork_available: bool,
     pub extruder_variants: Vec<String>,
     pub nozzles: Vec<NozzleTarget>,
 }

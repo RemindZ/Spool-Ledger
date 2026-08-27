@@ -28,10 +28,31 @@ export interface AccountRoot {
   filament_profile_count: number;
 }
 
+export interface ManualSourceRoot {
+  id: string;
+  path: string;
+  source_app: SourceApp;
+  source_kind: SourceKind;
+  active: boolean;
+  error: string | null;
+}
+
 export interface DiscoveryResponse {
   source_root_ids: string[];
+  manual_source_roots: ManualSourceRoot[];
   target_catalog_ids: string[];
   accounts: AccountRoot[];
+  orca_slicer_detected: boolean;
+  bambu_studio_detected: boolean;
+  platform: string;
+}
+
+export type CatalogProgressPhase = "loading" | "resolving" | "finished";
+
+export interface CatalogProgressEvent {
+  phase: CatalogProgressPhase;
+  processed: number;
+  total: number;
 }
 
 export interface CatalogSource {
@@ -62,6 +83,7 @@ export interface PrinterTarget {
   code: string;
   kind: "official" | "custom";
   verified: boolean;
+  artwork_available: boolean;
   extruder_variants: string[];
   nozzles: NozzleTarget[];
 }
@@ -72,6 +94,15 @@ export type PlanAction =
 export interface Conflict {
   kind: "case_only_name" | "identity_collision" | "settings_mismatch";
   message: string;
+}
+
+export type ConflictChoice = "rename" | "update" | "replace" | "skip";
+
+export interface ConflictDecision {
+  source_id: string;
+  printer_id: string;
+  nozzle: string;
+  choice: ConflictChoice;
 }
 
 export interface IdentityFingerprint {
@@ -105,9 +136,72 @@ export interface MigrationPlan {
   operations: PlanOperation[];
 }
 
+export interface OutputSelection {
+  slicing_presets: boolean;
+  custom_filaments: boolean;
+}
+
 export interface NozzleSelection {
   printer_id: string;
   diameters: string[];
+}
+
+export interface BuildPlanRequest {
+  source_catalog_id: string;
+  source_ids: string[];
+  target_catalog_id: string;
+  nozzles: NozzleSelection[];
+  destination_account_id: string;
+  preset_template: string;
+  ams_template: string;
+  outputs: OutputSelection;
+  naming: {
+    preset_rules: NamingRuleSpec[];
+    ams_rules: NamingRuleSpec[];
+    overrides: NameOverride[];
+    conflict_decisions: ConflictDecision[];
+  };
+}
+
+export interface TargetTemplateAffectedSource {
+  id: string;
+  name: string;
+}
+
+export interface TargetTemplateInstalledCandidate {
+  profile_name: string;
+  recommended: boolean;
+}
+
+export interface TargetTemplateSourceCandidate {
+  source_id: string;
+  name: string;
+}
+
+export interface TargetTemplateIssue {
+  id: string;
+  expected_name: string;
+  material: string;
+  printer_id: string;
+  printer_name: string;
+  nozzle: string;
+  affected_sources: TargetTemplateAffectedSource[];
+  installed_candidates: TargetTemplateInstalledCandidate[];
+  source_candidates: TargetTemplateSourceCandidate[];
+  diagnostic: string;
+}
+
+export type BuildPlanResponse =
+  | { status: "ready"; plan: MigrationPlan }
+  | { status: "needs_resolution"; issues: TargetTemplateIssue[] };
+
+export type TargetTemplateDecisionAction = "use_installed" | "use_source";
+
+export interface TargetTemplateDecision {
+  issue_id: string;
+  action: TargetTemplateDecisionAction;
+  profile_name: string | null;
+  source_id: string | null;
 }
 
 export type RulePatternKind = "wildcard" | "regex";
@@ -164,7 +258,28 @@ export interface LocalRunResult {
   run_id: string;
   plan_id: string;
   committed_files: number;
+  created_files: number;
+  updated_files: number;
+  deleted_files: number;
+  skipped_operations: number;
+  backup_sha256: string;
+  backup_file_count: number;
   receipt_path: string;
+}
+
+export type ExecutionPhase =
+  | "validating"
+  | "closing_bambu"
+  | "staging"
+  | "validating_output"
+  | "backing_up"
+  | "committing"
+  | "writing_receipt"
+  | "finished";
+
+export interface ExecutionProgressEvent {
+  plan_id: string;
+  phase: ExecutionPhase;
 }
 
 export type SyncPhase = "launching" | "monitoring" | "finished";

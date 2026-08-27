@@ -23,10 +23,14 @@ import type {
 
 const discovery: DiscoveryResponse = {
   source_root_ids: ["source:orca:system"],
+  manual_source_roots: [],
   target_catalog_ids: ["target:bambu"],
+  orca_slicer_detected: true,
+  bambu_studio_detected: true,
+  platform: "windows",
   accounts: [
     {
-      id: "2182110758",
+      id: "0000000000",
       eligibility: "eligible",
       filament_profile_count: 16,
     },
@@ -69,6 +73,7 @@ const printers: PrinterTarget[] = [
     code: "H2C",
     kind: "official",
     verified: true,
+    artwork_available: false,
     extruder_variants: [
       "Direct Drive Standard",
       "Direct Drive High Flow",
@@ -139,12 +144,14 @@ describe("application state", () => {
     let configured = reduce([
       { type: "sources_loaded", catalogId: "sources:1", sources },
       { type: "targets_loaded", catalogId: "targets:1", printers },
-      { type: "source_toggled", sourceId: "panchroma-satin" },
       {
-        type: "nozzle_toggled",
-        printerId: "official:H2C",
-        diameter: "0.4",
+        type: "setup_completed",
+        sourceApps: new Set(["orca_slicer", "bambu_studio"]),
+        sourceKinds: new Set(["factory_system", "user_custom"]),
+        enabledPrinterIds: new Set(["official:H2C"]),
+        selectedNozzles: { "official:H2C": new Set(["0.4"]) },
       },
+      { type: "source_toggled", sourceId: "panchroma-satin" },
       {
         type: "filters_changed",
         filters: { vendors: new Set(["Polymaker"]), selectedOnly: true },
@@ -156,6 +163,9 @@ describe("application state", () => {
       ams: "{vendor} {clean_name}",
     });
     persistWorkspacePreferences(storage, configured);
+    expect(JSON.parse(values.get("bfm.workspace")!)).not.toHaveProperty(
+      "show_custom_printers",
+    );
     const restored = createInitialState(
       "system",
       loadWorkspacePreferences(storage),
@@ -177,11 +187,145 @@ describe("application state", () => {
     expect(loadFilterPresets(storage)).toEqual([]);
   });
 
+  it("starts fresh installs without setup or implicitly enabled printers", () => {
+    const state = createInitialState();
+
+    expect(state.setupComplete).toBe(false);
+    expect(state.enabledPrinterIds).toEqual(new Set());
+    expect(selectedNozzleRequests(state)).toEqual([]);
+  });
+
+  it("migrates version 1 preferences without losing selections and shows setup once", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    let configured = reduce([
+      { type: "sources_loaded", catalogId: "sources:1", sources },
+      { type: "targets_loaded", catalogId: "targets:1", printers },
+      { type: "source_toggled", sourceId: "panchroma-satin" },
+      {
+        type: "nozzle_toggled",
+        printerId: "official:H2C",
+        diameter: "0.4",
+      },
+    ]);
+    configured = {
+      ...configured,
+      setupComplete: true,
+      enabledPrinterIds: new Set(["official:H2C"]),
+      selectedNozzles: { "official:H2C": new Set(["0.4"]) },
+    };
+    persistWorkspacePreferences(storage, configured);
+    const legacy = JSON.parse(values.get("bfm.workspace")!);
+    legacy.version = 1;
+    delete legacy.setup_complete;
+    delete legacy.enabled_printer_ids;
+    values.set("bfm.workspace", JSON.stringify(legacy));
+
+    const preferences = loadWorkspacePreferences(storage)!;
+
+    expect(preferences.setupComplete).toBe(false);
+    expect(preferences.enabledPrinterIds).toEqual(["official:H2C"]);
+    expect(preferences.selectedSourceIds).toEqual(["panchroma-satin"]);
+    expect(preferences.selectedNozzles).toEqual({ "official:H2C": ["0.4"] });
+  });
+
+  it("applies first-run filters, enabled printers, and supported nozzle defaults atomically", () => {
+    const planned: MigrationPlan = { id: "stale-plan", operations: [] };
+    let state = reduce([
+      { type: "sources_loaded", catalogId: "sources:1", sources },
+      { type: "targets_loaded", catalogId: "targets:1", printers },
+      { type: "plan_built", plan: planned },
+    ]);
+
+    state = appReducer(state, {
+      type: "setup_completed",
+      sourceApps: new Set(["orca_slicer"]),
+      sourceKinds: new Set(["factory_system"]),
+      enabledPrinterIds: new Set(["official:H2C", "official:unknown"]),
+      selectedNozzles: {
+        "official:H2C": new Set(["0.4", "1.0"]),
+        "official:unknown": new Set(["0.4"]),
+      },
+    });
+
+    expect(state.setupComplete).toBe(true);
+    expect(state.filters.sourceApps).toEqual(new Set(["orca_slicer"]));
+    expect(state.filters.sourceKinds).toEqual(new Set(["factory_system"]));
+    expect(state.enabledPrinterIds).toEqual(new Set(["official:H2C"]));
+    expect(state.selectedNozzles).toEqual({
+      "official:H2C": new Set(["0.4"]),
+    });
+    expect(state.plan).toBeNull();
+  });
+
+  it("removes disabled printers from plan requests and leaves new discoveries disabled", () => {
+    const morePrinters: PrinterTarget[] = [
+      ...printers,
+      {
+        ...printers[0],
+        id: "official:X1C",
+        name: "Bambu Lab X1 Carbon",
+        code: "X1C",
+        nozzles: printers[0].nozzles.map((nozzle) => ({
+          ...nozzle,
+          id: `X1C:${nozzle.diameter}`,
+          printer_preset_name: `Bambu Lab X1 Carbon ${nozzle.diameter} nozzle`,
+        })),
+      },
+    ];
+    let state = reduce([
+      {
+        type: "targets_loaded",
+        catalogId: "targets:1",
+        printers: morePrinters,
+      },
+    ]);
+    state = appReducer(state, {
+      type: "setup_completed",
+      sourceApps: new Set(["orca_slicer"]),
+      sourceKinds: new Set(["factory_system"]),
+      enabledPrinterIds: new Set(["official:H2C"]),
+      selectedNozzles: { "official:H2C": new Set(["0.4"]) },
+    });
+    state = {
+      ...state,
+      selectedNozzles: {
+        ...state.selectedNozzles,
+        "official:X1C": new Set(["0.4"]),
+      },
+    };
+
+    expect(selectedNozzleRequests(state)).toEqual([
+      { printer_id: "official:H2C", diameters: ["0.4"] },
+    ]);
+
+    state = appReducer(state, {
+      type: "enabled_printers_changed",
+      enabledPrinterIds: new Set(["official:H2C"]),
+      selectedNozzles: {},
+    });
+    expect(state.enabledPrinterIds).toEqual(new Set(["official:H2C"]));
+    expect(selectedNozzleRequests(state)).toEqual([]);
+
+    state = appReducer(state, {
+      type: "enabled_printers_changed",
+      enabledPrinterIds: new Set(),
+      selectedNozzles: {},
+    });
+    expect(state.enabledPrinterIds).toEqual(new Set());
+    expect(state.selectedNozzles).toEqual({});
+    expect(selectedNozzleRequests(state)).toEqual([]);
+  });
+
   it("prunes persisted selections that no longer exist in refreshed catalogs", () => {
     let state = createInitialState();
     state = {
       ...state,
       selectedSourceIds: new Set(["panchroma-satin", "gone-source"]),
+      enabledPrinterIds: new Set(["official:H2C", "gone-printer"]),
       selectedNozzles: {
         "official:H2C": new Set(["0.4", "1.0"]),
         "gone-printer": new Set(["0.4"]),
@@ -221,9 +365,9 @@ describe("application state", () => {
     const ready = reduce([{ type: "discovery_loaded", discovery }]);
     const selected = appReducer(ready, {
       type: "account_selected",
-      accountId: "2182110758",
+      accountId: "0000000000",
     });
-    expect(selected.selectedAccountId).toBe("2182110758");
+    expect(selected.selectedAccountId).toBe("0000000000");
     const themed = appReducer(selected, {
       type: "theme_changed",
       theme: "dark",
@@ -252,14 +396,74 @@ describe("application state", () => {
   it("selects nozzles independently and never selects all by choosing a printer", () => {
     let state = reduce([
       { type: "targets_loaded", catalogId: "targets:1", printers },
+      {
+        type: "setup_completed",
+        sourceApps: new Set(["orca_slicer"]),
+        sourceKinds: new Set(["factory_system"]),
+        enabledPrinterIds: new Set(["official:H2C"]),
+        selectedNozzles: { "official:H2C": new Set(["0.4"]) },
+      },
     ]);
     state = appReducer(state, {
       type: "nozzle_toggled",
       printerId: "official:H2C",
-      diameter: "0.4",
+      diameter: "0.6",
+    });
+    expect(selectedNozzleRequests(state)).toEqual([
+      { printer_id: "official:H2C", diameters: ["0.4", "0.6"] },
+    ]);
+  });
+
+  it("rejects unsupported nozzle toggles and excludes them from select all", () => {
+    const withUnsupported: PrinterTarget[] = [
+      {
+        ...printers[0],
+        nozzles: [
+          ...printers[0].nozzles,
+          {
+            id: "H2C:1.0",
+            diameter: "1.0",
+            printer_preset_name: "Bambu Lab H2C 1.0 nozzle",
+            selected: false,
+            supported: false,
+          },
+        ],
+      },
+    ];
+    let state = reduce([
+      {
+        type: "targets_loaded",
+        catalogId: "targets:unsupported",
+        printers: withUnsupported,
+      },
+      {
+        type: "setup_completed",
+        sourceApps: new Set(["orca_slicer"]),
+        sourceKinds: new Set(["factory_system"]),
+        enabledPrinterIds: new Set(["official:H2C"]),
+        selectedNozzles: { "official:H2C": new Set(["0.4"]) },
+      },
+    ]);
+
+    state = appReducer(state, {
+      type: "nozzle_toggled",
+      printerId: "official:H2C",
+      diameter: "1.0",
     });
     expect(selectedNozzleRequests(state)).toEqual([
       { printer_id: "official:H2C", diameters: ["0.4"] },
+    ]);
+
+    state = appReducer(state, {
+      type: "select_printer_nozzles",
+      printerId: "official:H2C",
+      selected: true,
+    });
+    expect(selectedNozzleRequests(state)[0].diameters).toEqual([
+      "0.2",
+      "0.4",
+      "0.6",
+      "0.8",
     ]);
   });
 
@@ -268,13 +472,20 @@ describe("application state", () => {
     const planned = reduce([
       { type: "sources_loaded", catalogId: "sources:1", sources },
       { type: "targets_loaded", catalogId: "targets:1", printers },
+      {
+        type: "setup_completed",
+        sourceApps: new Set(["orca_slicer"]),
+        sourceKinds: new Set(["factory_system"]),
+        enabledPrinterIds: new Set(["official:H2C"]),
+        selectedNozzles: { "official:H2C": new Set(["0.4"]) },
+      },
       { type: "plan_built", plan },
     ]);
     expect(planned.plan?.id).toBe("plan-1");
     for (const action of [
       { type: "source_toggled", sourceId: "panchroma-satin" },
       { type: "nozzle_toggled", printerId: "official:H2C", diameter: "0.4" },
-      { type: "account_selected", accountId: "2182110758" },
+      { type: "account_selected", accountId: "0000000000" },
       {
         type: "rules_changed",
         presetRules: [],
@@ -290,11 +501,66 @@ describe("application state", () => {
     }
   });
 
+  it("clears conflict decisions when the plan context changes", () => {
+    const decision = {
+      source_id: "panchroma-satin",
+      printer_id: "official:H2C",
+      nozzle: "0.4",
+      choice: "update" as const,
+    };
+    const decided = reduce([
+      { type: "discovery_loaded", discovery },
+      { type: "conflict_decisions_changed", decisions: [decision] },
+    ]);
+    expect(decided.conflictDecisions).toEqual([decision]);
+
+    for (const action of [
+      { type: "account_selected", accountId: "0000000000" },
+      { type: "source_toggled", sourceId: "panchroma-satin" },
+      {
+        type: "templates_changed",
+        preset: "{clean_name}",
+        ams: "{vendor} {clean_name}",
+      },
+      {
+        type: "outputs_changed",
+        outputs: { slicing_presets: true, custom_filaments: false },
+      },
+    ] satisfies AppAction[]) {
+      expect(appReducer(decided, action).conflictDecisions).toEqual([]);
+    }
+  });
+
+  it("returns typed dependency planning to setup without a generic error", () => {
+    let state = reduce([
+      { type: "sources_loaded", catalogId: "sources:1", sources },
+      { type: "source_toggled", sourceId: "panchroma-satin" },
+      { type: "source_toggled", sourceId: "bambu-basic" },
+      { type: "planning_started" },
+    ]);
+
+    state = appReducer(state, { type: "planning_stopped" });
+    state = appReducer(state, {
+      type: "sources_removed",
+      sourceIds: new Set(["panchroma-satin"]),
+    });
+
+    expect(state.phase).toBe("ready");
+    expect(state.error).toBeNull();
+    expect(state.selectedSourceIds).toEqual(new Set(["bambu-basic"]));
+  });
+
   it("records synchronization evidence without discarding a committed local run", () => {
     const local = {
       run_id: "run-1",
       plan_id: "plan-1",
       committed_files: 3,
+      created_files: 3,
+      updated_files: 0,
+      deleted_files: 0,
+      skipped_operations: 0,
+      backup_sha256: "backup-sha256",
+      backup_file_count: 3,
       receipt_path: "receipt.json",
     };
     let state = reduce([{ type: "execution_completed", result: local }]);

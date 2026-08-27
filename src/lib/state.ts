@@ -1,7 +1,9 @@
 import type {
   CatalogSource,
+  ConflictDecision,
   DiscoveryResponse,
   EvidenceLevel,
+  ExecutionPhase,
   LocalRunResult,
   MigrationPlan,
   MigrationStatus,
@@ -10,6 +12,7 @@ import type {
   NamingRule,
   NozzleSelection,
   OperationState,
+  OutputSelection,
   PrinterTarget,
   SourceApp,
   SourceKind,
@@ -42,10 +45,11 @@ export interface SourceFilters {
 }
 
 export interface WorkspacePreferences {
+  setupComplete: boolean;
+  enabledPrinterIds: string[];
   selectedAccountId: string | null;
   selectedSourceIds: string[];
   selectedNozzles: Record<string, string[]>;
-  showCustomPrinters: boolean;
   filters: SourceFilters;
   presetTemplate: string;
   amsTemplate: string;
@@ -68,6 +72,8 @@ export interface AppState {
   phase: AppPhase;
   theme: Theme;
   discovery: DiscoveryResponse | null;
+  setupComplete: boolean;
+  enabledPrinterIds: Set<string>;
   selectedAccountId: string | null;
   sourceCatalogId: string | null;
   targetCatalogId: string | null;
@@ -75,14 +81,16 @@ export interface AppState {
   printers: PrinterTarget[];
   selectedSourceIds: Set<string>;
   selectedNozzles: Record<string, Set<string>>;
-  showCustomPrinters: boolean;
   filters: SourceFilters;
   presetTemplate: string;
   amsTemplate: string;
   presetRules: NamingRule[];
   amsRules: NamingRule[];
+  outputs: OutputSelection;
   nameOverrides: NameOverride[];
+  conflictDecisions: ConflictDecision[];
   plan: MigrationPlan | null;
+  executionPhase: ExecutionPhase | null;
   progress: Record<string, OperationProgress>;
   result: LocalRunResult | null;
   synchronization: SyncResult | null;
@@ -99,19 +107,35 @@ export type AppAction =
   | { type: "account_selected"; accountId: string }
   | { type: "sources_loaded"; catalogId: string; sources: CatalogSource[] }
   | { type: "targets_loaded"; catalogId: string; printers: PrinterTarget[] }
+  | {
+      type: "setup_completed";
+      sourceApps: Set<SourceApp>;
+      sourceKinds: Set<SourceKind>;
+      enabledPrinterIds: Set<string>;
+      selectedNozzles: Record<string, Set<string>>;
+    }
+  | {
+      type: "enabled_printers_changed";
+      enabledPrinterIds: Set<string>;
+      selectedNozzles: Record<string, Set<string>>;
+    }
   | { type: "source_toggled"; sourceId: string }
+  | { type: "sources_removed"; sourceIds: Set<string> }
   | { type: "filters_changed"; filters: Partial<SourceFilters> }
   | { type: "select_visible"; selected: boolean }
   | { type: "clear_selection" }
-  | { type: "show_custom_changed"; value: boolean }
   | { type: "nozzle_toggled"; printerId: string; diameter: string }
   | { type: "select_printer_nozzles"; printerId: string; selected: boolean }
   | { type: "templates_changed"; preset: string; ams: string }
   | { type: "rules_changed"; presetRules: NamingRule[]; amsRules: NamingRule[] }
+  | { type: "outputs_changed"; outputs: OutputSelection }
   | { type: "name_overrides_changed"; overrides: NameOverride[] }
+  | { type: "conflict_decisions_changed"; decisions: ConflictDecision[] }
   | { type: "planning_started" }
+  | { type: "planning_stopped" }
   | { type: "plan_built"; plan: MigrationPlan }
   | { type: "execution_started" }
+  | { type: "execution_phase"; phase: ExecutionPhase }
   | {
       type: "progress_updated";
       operationId: string;
@@ -151,6 +175,8 @@ export function createInitialState(
     phase: "idle",
     theme,
     discovery: null,
+    setupComplete: preferences?.setupComplete ?? false,
+    enabledPrinterIds: new Set(preferences?.enabledPrinterIds ?? []),
     selectedAccountId: preferences?.selectedAccountId ?? null,
     sourceCatalogId: null,
     targetCatalogId: null,
@@ -162,14 +188,16 @@ export function createInitialState(
         ([printer, nozzles]) => [printer, new Set(nozzles)],
       ),
     ),
-    showCustomPrinters: preferences?.showCustomPrinters ?? false,
     filters: preferences?.filters ?? emptyFilters(),
     presetTemplate: preferences?.presetTemplate ?? DEFAULT_PRESET_TEMPLATE,
     amsTemplate: preferences?.amsTemplate ?? DEFAULT_AMS_TEMPLATE,
     presetRules: preferences?.presetRules ?? [],
     amsRules: preferences?.amsRules ?? [],
+    outputs: { slicing_presets: true, custom_filaments: true },
     nameOverrides: [],
+    conflictDecisions: [],
     plan: null,
+    executionPhase: null,
     progress: {},
     result: null,
     synchronization: null,
@@ -179,10 +207,15 @@ export function createInitialState(
   };
 }
 
-function invalidatePlan(state: AppState): AppState {
+function invalidatePlan(
+  state: AppState,
+  preserveConflictDecisions = false,
+): AppState {
   return {
     ...state,
     plan: null,
+    conflictDecisions: preserveConflictDecisions ? state.conflictDecisions : [],
+    executionPhase: null,
     result: null,
     progress: {},
     synchronization: null,
@@ -202,6 +235,35 @@ export function removeSetValue<T>(values: Set<T>, value: T): Set<T> {
   const next = new Set(values);
   next.delete(value);
   return next;
+}
+
+function sanitizePrinterSelection(
+  printers: PrinterTarget[],
+  requestedEnabled: Set<string>,
+  requestedNozzles: Record<string, Set<string>>,
+): {
+  enabledPrinterIds: Set<string>;
+  selectedNozzles: Record<string, Set<string>>;
+} {
+  const enabledPrinterIds = new Set<string>();
+  const selectedNozzles: Record<string, Set<string>> = {};
+  for (const printer of printers) {
+    if (printer.kind !== "official" || !requestedEnabled.has(printer.id))
+      continue;
+    const supported = new Set(
+      printer.nozzles
+        .filter((nozzle) => nozzle.supported)
+        .map((nozzle) => nozzle.diameter),
+    );
+    const nozzles = new Set(
+      [...(requestedNozzles[printer.id] ?? [])].filter((diameter) =>
+        supported.has(diameter),
+      ),
+    );
+    enabledPrinterIds.add(printer.id);
+    if (nozzles.size > 0) selectedNozzles[printer.id] = nozzles;
+  }
+  return { enabledPrinterIds, selectedNozzles };
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -261,46 +323,61 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       });
     }
     case "targets_loaded": {
-      const supported = new Map(
-        action.printers.map((printer) => [
-          printer.id,
-          new Set(
-            printer.nozzles
-              .filter((nozzle) => nozzle.supported)
-              .map((nozzle) => nozzle.diameter),
-          ),
-        ]),
-      );
-      const selectedNozzles = Object.fromEntries(
-        Object.entries(state.selectedNozzles)
-          .map(
-            ([printer, nozzles]) =>
-              [
-                printer,
-                new Set(
-                  [...nozzles].filter((diameter) =>
-                    supported.get(printer)?.has(diameter),
-                  ),
-                ),
-              ] as const,
-          )
-          .filter(([, nozzles]) => nozzles.size > 0),
+      const selection = sanitizePrinterSelection(
+        action.printers,
+        state.enabledPrinterIds,
+        state.selectedNozzles,
       );
       return invalidatePlan({
         ...state,
         targetCatalogId: action.catalogId,
         printers: action.printers,
-        selectedNozzles,
+        ...selection,
         phase: "ready",
         error: null,
       });
     }
+    case "setup_completed": {
+      const selection = sanitizePrinterSelection(
+        state.printers,
+        action.enabledPrinterIds,
+        action.selectedNozzles,
+      );
+      return invalidatePlan({
+        ...state,
+        setupComplete: true,
+        filters: {
+          ...state.filters,
+          sourceApps: new Set(action.sourceApps),
+          sourceKinds: new Set(action.sourceKinds),
+        },
+        ...selection,
+      });
+    }
+    case "enabled_printers_changed":
+      return invalidatePlan({
+        ...state,
+        ...sanitizePrinterSelection(
+          state.printers,
+          action.enabledPrinterIds,
+          action.selectedNozzles,
+        ),
+      });
     case "source_toggled":
       return invalidatePlan({
         ...state,
         selectedSourceIds: toggleSetValue(
           state.selectedSourceIds,
           action.sourceId,
+        ),
+      });
+    case "sources_removed":
+      return invalidatePlan({
+        ...state,
+        selectedSourceIds: new Set(
+          [...state.selectedSourceIds].filter(
+            (id) => !action.sourceIds.has(id),
+          ),
         ),
       });
     case "filters_changed":
@@ -315,9 +392,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
     case "clear_selection":
       return invalidatePlan({ ...state, selectedSourceIds: new Set() });
-    case "show_custom_changed":
-      return invalidatePlan({ ...state, showCustomPrinters: action.value });
     case "nozzle_toggled": {
+      const supported =
+        state.enabledPrinterIds.has(action.printerId) &&
+        state.printers
+          .find((printer) => printer.id === action.printerId)
+          ?.nozzles.some(
+            (nozzle) => nozzle.diameter === action.diameter && nozzle.supported,
+          );
+      if (!supported) return state;
       const selectedNozzles = { ...state.selectedNozzles };
       selectedNozzles[action.printerId] = toggleSetValue(
         selectedNozzles[action.printerId] ?? new Set(),
@@ -329,7 +412,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const printer = state.printers.find(
         (item) => item.id === action.printerId,
       );
-      if (!printer) return state;
+      if (!printer || !state.enabledPrinterIds.has(printer.id)) return state;
       const selectedNozzles = { ...state.selectedNozzles };
       selectedNozzles[action.printerId] = action.selected
         ? new Set(
@@ -352,10 +435,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         presetRules: action.presetRules,
         amsRules: action.amsRules,
       });
+    case "outputs_changed":
+      return invalidatePlan({ ...state, outputs: action.outputs });
     case "name_overrides_changed":
       return invalidatePlan({ ...state, nameOverrides: action.overrides });
+    case "conflict_decisions_changed":
+      return invalidatePlan(
+        { ...state, conflictDecisions: action.decisions },
+        true,
+      );
     case "planning_started":
       return { ...state, phase: "planning", error: null };
+    case "planning_stopped":
+      return { ...state, phase: "ready", error: null };
     case "plan_built":
       return {
         ...state,
@@ -369,12 +461,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         phase: "executing",
         progress: {},
+        executionPhase: null,
         result: null,
         synchronization: null,
         syncPhase: null,
         syncError: null,
         error: null,
       };
+    case "execution_phase":
+      return { ...state, executionPhase: action.phase };
     case "progress_updated":
       return {
         ...state,
@@ -592,7 +687,16 @@ export function visibleSources(state: AppState): CatalogSource[] {
 }
 
 export function selectedNozzleRequests(state: AppState): NozzleSelection[] {
+  const official = new Set(
+    state.printers
+      .filter((printer) => printer.kind === "official")
+      .map((printer) => printer.id),
+  );
   return Object.entries(state.selectedNozzles)
+    .filter(
+      ([printerId]) =>
+        state.enabledPrinterIds.has(printerId) && official.has(printerId),
+    )
     .map(([printer_id, values]) => ({
       printer_id,
       diameters: [...values].sort(numericSort),
@@ -628,11 +732,22 @@ export function loadWorkspacePreferences(
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (!parsed || parsed.version !== 1) return null;
+    if (!parsed || (parsed.version !== 1 && parsed.version !== 2)) return null;
     const selectedSourceIds = stringArray(parsed.selected_source_ids);
     const selectedNozzles = stringArrayRecord(parsed.selected_nozzles);
     const filters = deserializeFilters(parsed.filters);
     if (!selectedSourceIds || !selectedNozzles || !filters) return null;
+    const enabledPrinterIds =
+      parsed.version === 1
+        ? Object.keys(selectedNozzles)
+        : stringArray(parsed.enabled_printer_ids);
+    const setupComplete =
+      parsed.version === 1
+        ? false
+        : typeof parsed.setup_complete === "boolean"
+          ? parsed.setup_complete
+          : null;
+    if (!enabledPrinterIds || setupComplete === null) return null;
     const presetRules =
       Array.isArray(parsed.preset_rules) &&
       parsed.preset_rules.every(isNamingRule)
@@ -643,13 +758,14 @@ export function loadWorkspacePreferences(
         ? parsed.ams_rules
         : [];
     return {
+      setupComplete,
+      enabledPrinterIds,
       selectedAccountId:
         typeof parsed.selected_account_id === "string"
           ? parsed.selected_account_id
           : null,
       selectedSourceIds,
       selectedNozzles,
-      showCustomPrinters: parsed.show_custom_printers === true,
       filters,
       presetTemplate:
         typeof parsed.preset_template === "string"
@@ -674,7 +790,9 @@ export function persistWorkspacePreferences(
   storage.setItem(
     "bfm.workspace",
     JSON.stringify({
-      version: 1,
+      version: 2,
+      setup_complete: state.setupComplete,
+      enabled_printer_ids: [...state.enabledPrinterIds].sort(),
       selected_account_id: state.selectedAccountId,
       selected_source_ids: [...state.selectedSourceIds].sort(),
       selected_nozzles: Object.fromEntries(
@@ -683,7 +801,6 @@ export function persistWorkspacePreferences(
           [...nozzles].sort(numericSort),
         ]),
       ),
-      show_custom_printers: state.showCustomPrinters,
       filters: serializeFilters(state.filters),
       preset_template: state.presetTemplate,
       ams_template: state.amsTemplate,

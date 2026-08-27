@@ -1,13 +1,15 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
+  BuildPlanRequest,
+  BuildPlanResponse,
+  CatalogProgressEvent,
   CatalogSource,
   DiscoveryResponse,
+  ExecutionProgressEvent,
   LocalRunResult,
-  MigrationPlan,
-  NameOverride,
   NamePreview,
   NamingRuleSpec,
-  NozzleSelection,
   PrinterTarget,
   RestorePreview,
   RollbackOutcome,
@@ -15,6 +17,7 @@ import type {
   SourceKind,
   SyncProgressEvent,
   SyncResult,
+  TargetTemplateDecision,
 } from "./types";
 
 interface SourceCatalogResponse {
@@ -25,21 +28,6 @@ interface SourceCatalogResponse {
 interface TargetCatalogResponse {
   catalog_id: string;
   printers: PrinterTarget[];
-}
-
-interface BuildPlanRequest {
-  source_catalog_id: string;
-  source_ids: string[];
-  target_catalog_id: string;
-  nozzles: NozzleSelection[];
-  destination_account_id: string;
-  preset_template: string;
-  ams_template: string;
-  naming: {
-    preset_rules: NamingRuleSpec[];
-    ams_rules: NamingRuleSpec[];
-    overrides: NameOverride[];
-  };
 }
 
 interface PreviewNameRowInput {
@@ -57,14 +45,39 @@ interface PreviewNameRowInput {
 
 export const api = {
   discover: () => invoke<DiscoveryResponse>("discover"),
-  catalogSources: (rootIds: string[]) =>
-    invoke<SourceCatalogResponse>("catalog_sources", {
+  chooseManualSourceFolder: (request: {
+    source_app: SourceApp;
+    source_kind: SourceKind;
+  }) =>
+    invoke<DiscoveryResponse | null>("choose_manual_source_folder", {
+      request,
+    }),
+  removeManualSourceFolder: (id: string) =>
+    invoke<DiscoveryResponse>("remove_manual_source_folder", {
+      request: { id },
+    }),
+  catalogSources: (
+    rootIds: string[],
+    onProgress: (event: CatalogProgressEvent) => void,
+  ) => {
+    const channel = new Channel<CatalogProgressEvent>();
+    channel.onmessage = onProgress;
+    return invoke<SourceCatalogResponse>("catalog_sources", {
       request: { root_ids: rootIds },
-    }),
-  catalogTargets: (catalogId: string, showCustom: boolean) =>
-    invoke<TargetCatalogResponse>("catalog_targets", {
-      request: { catalog_id: catalogId, show_custom: showCustom },
-    }),
+      onProgress: channel,
+    });
+  },
+  catalogTargets: (
+    catalogId: string,
+    onProgress: (event: CatalogProgressEvent) => void,
+  ) => {
+    const channel = new Channel<CatalogProgressEvent>();
+    channel.onmessage = onProgress;
+    return invoke<TargetCatalogResponse>("catalog_targets", {
+      request: { catalog_id: catalogId, show_custom: false },
+      onProgress: channel,
+    });
+  },
   previewNames: (request: {
     preset_template: string;
     ams_template: string;
@@ -73,9 +86,28 @@ export const api = {
     rows: PreviewNameRowInput[];
   }) => invoke<NamePreview[]>("preview_names", { request }),
   buildPlan: (request: BuildPlanRequest) =>
-    invoke<{ plan: MigrationPlan }>("build_plan", { request }),
-  executePlan: (planId: string) =>
-    invoke<LocalRunResult>("execute_plan", { request: { plan_id: planId } }),
+    invoke<BuildPlanResponse>("build_plan", { request }),
+  resolvePlanDependencies: (
+    request: BuildPlanRequest,
+    decisions: TargetTemplateDecision[],
+  ) =>
+    invoke<BuildPlanResponse>("resolve_plan_dependencies", {
+      request: { request, decisions },
+    }),
+  printerArtwork: (catalogId: string, printerId: string) =>
+    invoke<ArrayBuffer>("printer_artwork", { catalogId, printerId }),
+  openSupportPage: () => openUrl("https://buymeacoffee.com/Remitec"),
+  executePlan: (
+    planId: string,
+    onProgress: (event: ExecutionProgressEvent) => void,
+  ) => {
+    const channel = new Channel<ExecutionProgressEvent>();
+    channel.onmessage = onProgress;
+    return invoke<LocalRunResult>("execute_plan", {
+      request: { plan_id: planId },
+      onProgress: channel,
+    });
+  },
   synchronizeRun: (
     runId: string,
     onProgress: (event: SyncProgressEvent) => void,

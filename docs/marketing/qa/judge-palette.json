@@ -1,0 +1,33 @@
+{
+  "judge": "palette",
+  "brand": "spool-ledger",
+  "generatedAt": "2026-08-26T07:32:16.572Z",
+  "verdict": "PASS",
+  "input": {
+    "path": "out/spool-ledger/og-image.png",
+    "type": "png",
+    "frames": 1,
+    "mask": null
+  },
+  "forbidden": {
+    "colors": [],
+    "hueRanges": []
+  },
+  "thresholds": {
+    "SAT_THRESHOLD": 0.35,
+    "MIN_VALUE": 0.15,
+    "DIST_THRESHOLD": 90,
+    "HIGH_FRAC": 0.25
+  },
+  "frames": [
+    {
+      "index": 0,
+      "timeMs": null,
+      "forbiddenFraction": 0,
+      "offending": null,
+      "confidence": null,
+      "level": "PASS"
+    }
+  ],
+  "findings": []
+}

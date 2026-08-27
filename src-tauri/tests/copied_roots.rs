@@ -1,7 +1,7 @@
 use bambu_filament_migrator::commands::{
     ApprovedAccount, ApprovedSourceRoot, ApprovedTargetCatalog, BuildPlanRequest,
     CatalogSourcesRequest, CatalogTargetsRequest, ExecutePlanRequest, MigrationService,
-    NozzleSelection, ServiceConfig,
+    NozzleSelection, OutputSelection, ServiceConfig,
 };
 use bambu_filament_migrator::discovery::inspect_account;
 use bambu_filament_migrator::model::{SourceApp, SourceKind};
@@ -235,13 +235,15 @@ fn copied_windows_roots_reproduce_all_panchroma_h2c_artifacts_without_live_write
             destination_account_id: SYNTHETIC_ACCOUNT_ID.to_owned(),
             preset_template: "{source_name} - {printer_code}".to_owned(),
             ams_template: "{vendor} {material} {clean_name}".to_owned(),
+            outputs: OutputSelection::default(),
             naming: NamingOptions::default(),
         })
+        .unwrap()
+        .into_plan()
         .unwrap();
-    assert_eq!(response.plan.operations.len(), 64);
+    assert_eq!(response.operations.len(), 64);
     assert!(
         response
-            .plan
             .operations
             .iter()
             .all(|operation| operation.action == PlanAction::Create)
@@ -252,7 +254,7 @@ fn copied_windows_roots_reproduce_all_panchroma_h2c_artifacts_without_live_write
     let local = service
         .execute_plan_with(
             ExecutePlanRequest {
-                plan_id: response.plan.id,
+                plan_id: response.id,
             },
             &mut process,
             &mut clock,

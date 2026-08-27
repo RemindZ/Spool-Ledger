@@ -21,7 +21,7 @@
 - Automated evidence stops at `cloud_id_assigned`; only an operator can record `ams_verified`.
 - Unknown cross-application fields block writes unless a reviewed field policy classifies them.
 - Rollback touches only journal-owned paths whose hashes still match committed hashes.
-- Official printers are manifest-discovered; custom printers remain hidden behind the **Show custom printers** toggle and marked unverified.
+- Official printers are manifest-discovered; v1 does not expose custom printer targets.
 - UI uses Bambu green/charcoal foundations with restrained Orca orange accents, complete light/dark/system themes, keyboard access, and no color-only states.
 - One source tree targets Windows, macOS, and Linux; release claims remain conditional on compatibility-matrix acceptance.
 
@@ -299,7 +299,7 @@ fn empty_account_is_not_writable_by_default() {
 }
 ```
 
-Add manifest tests proving official printers are visible and custom printers are tagged/hidden by default, with independent nozzle choices.
+Add manifest tests proving official printers are visible with independent nozzle choices and custom printer targets are not exposed by v1.
 
 - [ ] **Step 2: Verify RED**
 
@@ -312,7 +312,7 @@ Use `directories` and explicit candidate tables per OS. Discovery never writes. 
 
 - [ ] **Step 4: Implement manifest-driven target discovery**
 
-Read installed manifests/profile files, derive official/custom kind, printer code, nozzles, extruder variants, and adapter support state without a fixed printer model list.
+Read installed manifests/profile files, derive official printer codes, nozzles, extruder variants, and adapter support state without a fixed printer model list. Do not expose custom printer targets in v1.
 
 - [ ] **Step 5: Verify GREEN**
 

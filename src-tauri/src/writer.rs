@@ -37,6 +37,10 @@ impl BambuAdapter {
         }
     }
 
+    pub fn validate_target_profile(&self, profile: &EffectiveProfile) -> Result<(), AppError> {
+        validate_effective_fields(profile, self, false)
+    }
+
     fn mapped_field_strategy(&self, key: &str) -> Result<MappedFieldStrategy, AppError> {
         match key {
             "filament_flow_ratio"
@@ -65,13 +69,37 @@ impl BambuAdapter {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutputSelection {
+    pub slicing_presets: bool,
+    pub custom_filaments: bool,
+}
+
+impl Default for OutputSelection {
+    fn default() -> Self {
+        Self {
+            slicing_presets: true,
+            custom_filaments: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetProfileReference {
+    Catalog(String),
+    Source(ProfileId),
+}
+
 pub struct WriterContext<'a> {
-    pub sources: &'a ProfileCatalog,
+    pub sources: BTreeMap<ProfileId, EffectiveProfile>,
     pub targets: &'a ProfileCatalog,
-    pub target_profiles: BTreeMap<String, String>,
+    pub target_profiles: BTreeMap<String, TargetProfileReference>,
     pub adapter: BambuAdapter,
+    pub outputs: OutputSelection,
     pub updated_time: i64,
     pub existing_sidecars: BTreeMap<String, InfoSidecar>,
+    pub existing_normal_compatibility: BTreeMap<String, BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,10 +111,18 @@ pub enum GeneratedArtifactKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "state", content = "sha256")]
+pub enum ExpectedFileState {
+    Absent,
+    Matches(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GeneratedArtifact {
     pub kind: GeneratedArtifactKind,
     pub operation_ids: Vec<String>,
     pub relative_path: PathBuf,
+    pub destination_precondition: Option<ExpectedFileState>,
     pub sha256: String,
     pub size: u64,
 }
@@ -125,6 +161,9 @@ impl Writer {
 
         let mut normal_groups: BTreeMap<(ProfileId, String), Vec<&PlanOperation>> = BTreeMap::new();
         for operation in &writable {
+            if !context.outputs.slicing_presets {
+                continue;
+            }
             normal_groups
                 .entry((operation.source_id.clone(), operation.preset_name.clone()))
                 .or_default()
@@ -136,8 +175,14 @@ impl Writer {
                 AppError::InvalidProfile(format!("resolved source disappeared: {source_id}"))
             })?;
             let target = common_target(&operations, &targets)?;
-            let value =
-                build_normal_profile(source, target, &preset_name, &operations, &context.adapter)?;
+            let value = build_normal_profile(
+                source,
+                target,
+                &preset_name,
+                &operations,
+                context.existing_normal_compatibility.get(&preset_name),
+                &context.adapter,
+            )?;
             insert_pending(
                 &mut generated,
                 PathBuf::from("filament").join(format!("{preset_name}.json")),
@@ -148,6 +193,9 @@ impl Writer {
         }
 
         for operation in writable {
+            if !context.outputs.custom_filaments {
+                continue;
+            }
             let source = resolved.get(&operation.source_id).ok_or_else(|| {
                 AppError::InvalidProfile(format!(
                     "resolved source disappeared: {}",
@@ -319,16 +367,21 @@ fn resolve_and_validate_sources(
         if result.contains_key(&operation.source_id) {
             continue;
         }
-        let effective = context.sources.resolve_name(&operation.source_id.0)?;
-        validate_effective_fields(&effective, &context.adapter, true)?;
-        let actual = effective_settings_fingerprint(&effective)?;
+        let effective = context.sources.get(&operation.source_id).ok_or_else(|| {
+            AppError::InvalidProfile(format!(
+                "resolved source disappeared: {}",
+                operation.source_id
+            ))
+        })?;
+        validate_effective_fields(effective, &context.adapter, true)?;
+        let actual = effective_settings_fingerprint(effective)?;
         if actual != operation.source_precondition_fingerprint {
             return Err(AppError::Conflict(format!(
                 "source fingerprint changed for {}",
                 operation.source_id
             )));
         }
-        result.insert(operation.source_id.clone(), effective);
+        result.insert(operation.source_id.clone(), effective.clone());
     }
     Ok(result)
 }
@@ -342,7 +395,7 @@ fn resolve_targets(
         if result.contains_key(&operation.id) {
             continue;
         }
-        let profile_name = context
+        let reference = context
             .target_profiles
             .get(&operation.id)
             .or_else(|| context.target_profiles.get(&operation.printer_id))
@@ -352,7 +405,18 @@ fn resolve_targets(
                     operation.printer_id
                 ))
             })?;
-        let effective = context.targets.resolve_name(profile_name)?;
+        let effective = match reference {
+            TargetProfileReference::Catalog(profile_name) => {
+                context.targets.resolve_name(profile_name)?
+            }
+            TargetProfileReference::Source(source_id) => {
+                context.sources.get(source_id).cloned().ok_or_else(|| {
+                    AppError::UnsupportedSchema(format!(
+                        "target source profile is unavailable: {source_id}"
+                    ))
+                })?
+            }
+        };
         context
             .adapter
             .field_policy
@@ -387,6 +451,7 @@ fn build_normal_profile(
     target: &EffectiveProfile,
     name: &str,
     operations: &[&PlanOperation],
+    existing_compatibility: Option<&BTreeSet<String>>,
     adapter: &BambuAdapter,
 ) -> Result<Value, AppError> {
     let mut object = transfer_values(source, target, adapter)?;
@@ -394,6 +459,7 @@ fn build_normal_profile(
         .iter()
         .map(|operation| operation.printer_preset_name.clone())
         .collect();
+    compatible.extend(existing_compatibility.into_iter().flatten().cloned());
     compatible.sort();
     compatible.dedup();
     object.insert("compatible_printers".to_owned(), strings(compatible));
@@ -636,6 +702,7 @@ fn write_staging_tree(
                 kind: pending.kind,
                 operation_ids: pending.operation_ids,
                 relative_path,
+                destination_precondition: None,
                 sha256: format!("{:x}", Sha256::digest(&pending.bytes)),
                 size: pending.bytes.len() as u64,
             });

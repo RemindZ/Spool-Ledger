@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "platforms": [
+    {
+      "id": "windows-x64",
+      "platform": "windows",
+      "architecture": "x64",
+      "release_enabled": false,
+      "unsigned": true,
+      "evidence_document": "docs/compatibility/windows-x64-baseline.md",
+      "artifact_kinds": ["nsis", "msi", "portable"],
+      "pending": "Built-app owner dogfood, restart/resynchronization, and operator AMS acceptance"
+    },
+    {
+      "id": "macos-universal",
+      "platform": "macos",
+      "architecture": "universal",
+      "release_enabled": false,
+      "unsigned": true,
+      "evidence_document": "docs/compatibility/macos-universal-baseline.md",
+      "artifact_kinds": ["dmg"],
+      "pending": "Real-installation discovery, copied-root acceptance, Bambu load, restart/resynchronization, and operator AMS acceptance"
+    }
+  ]
+}

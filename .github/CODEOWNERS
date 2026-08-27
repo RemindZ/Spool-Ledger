@@ -1,0 +1,8 @@
+# Release automation and compatibility gates require owner review.
+/.github/ @Remindz
+/scripts/release-contract.mjs @Remindz
+/scripts/validate-release.mjs @Remindz
+/scripts/release-workflow.test.mjs @Remindz
+/docs/compatibility/ @Remindz
+/docs/release/ @Remindz
+/src-tauri/tauri.conf.json @Remindz

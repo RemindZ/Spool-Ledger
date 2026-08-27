@@ -13,6 +13,12 @@ Every Orca-to-Bambu field must be classified before migration. The bundled table
 
 Unknown Orca fields block cross-application output. They are never silently dropped or passed through.
 
+## Characterized fan fields
+
+`first_x_layer_part_fan_speed` and `ironing_fan_speed` are classified as `source_material`. Bambu Studio upstream includes both keys in its filament-preset option list in [`Preset.cpp`](https://github.com/bambulab/BambuStudio/blob/926a7192574bcb9b3a732e1ec59a46d79cb45466/src/libslic3r/Preset.cpp). Resolver and writer regressions verify that both values survive Orca-to-Bambu transfer and participate in the generated material settings.
+
+This evidence applies only to these two reviewed fields. Neighboring or newly discovered keys remain fail-closed until they are characterized independently.
+
 ## Current mapped vectors
 
 - `filament_flow_ratio`

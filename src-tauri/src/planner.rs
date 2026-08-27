@@ -55,12 +55,40 @@ pub struct MigrationRequest {
 
 pub type MaterialFingerprintIndex = BTreeMap<(ProfileId, String), String>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictChoice {
+    Rename,
+    Update,
+    Replace,
+    Skip,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConflictDecision {
+    pub source_id: ProfileId,
+    pub printer_id: String,
+    pub nozzle: String,
+    pub choice: ConflictChoice,
+}
+
+impl ConflictDecision {
+    fn matches(&self, source: &MigrationSource, target: &TargetSelection) -> bool {
+        self.source_id == source.id
+            && self.printer_id == target.printer_id
+            && self.nozzle == target.nozzle
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NamingOptions {
     pub preset_rules: Vec<ReplacementRuleSpec>,
     pub ams_rules: Vec<ReplacementRuleSpec>,
     pub overrides: Vec<NameOverride>,
+    #[serde(default)]
+    pub conflict_decisions: Vec<ConflictDecision>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,13 +397,35 @@ impl Planner {
                     .clone();
                 let identity_fingerprint =
                     IdentityFingerprint::new(&ams_name, &target.printer_code, &target.nozzle);
-                let (action, conflict, precondition_fingerprint) = classify_destination(
+                let (mut action, mut conflict, precondition_fingerprint) = classify_destination(
                     destinations,
                     &ams_name,
                     &filament_id,
                     &target.printer_preset_name,
                     &material_settings_fingerprint,
                 );
+                let decisions = naming
+                    .conflict_decisions
+                    .iter()
+                    .filter(|item| item.matches(source, target))
+                    .collect::<Vec<_>>();
+                if decisions.len() > 1 {
+                    return Err(AppError::Conflict(format!(
+                        "multiple conflict decisions match {} {} {}",
+                        source.name, target.printer_name, target.nozzle
+                    )));
+                }
+                if let Some(decision) = decisions.first() {
+                    (action, conflict) = apply_conflict_decision(
+                        destinations,
+                        &ams_name,
+                        &filament_id,
+                        &target.printer_preset_name,
+                        action,
+                        conflict,
+                        decision.choice,
+                    );
+                }
                 let operation_key = serde_json::to_vec(&(
                     &source.id,
                     &target.printer_id,
@@ -432,6 +482,54 @@ fn naming_context(source: &MigrationSource, target: &TargetSelection) -> NamingC
         .with("printer", target.printer_name.clone())
         .with("printer_code", target.printer_code.clone())
         .with("nozzle", target.nozzle.clone())
+}
+
+fn apply_conflict_decision(
+    destinations: &DestinationIndex,
+    name: &str,
+    filament_id: &str,
+    printer_preset_name: &str,
+    action: PlanAction,
+    conflict: Option<Conflict>,
+    choice: ConflictChoice,
+) -> (PlanAction, Option<Conflict>) {
+    if action != PlanAction::Block {
+        return (action, conflict);
+    }
+    if choice == ConflictChoice::Skip {
+        return (PlanAction::Skip, None);
+    }
+    let exact_identity = destinations.existing.iter().any(|item| {
+        item.name == name
+            && item.filament_id == filament_id
+            && item.printer_preset_name == printer_preset_name
+    });
+    if choice == ConflictChoice::Update
+        && exact_identity
+        && conflict
+            .as_ref()
+            .is_some_and(|item| item.kind == ConflictKind::SettingsMismatch)
+    {
+        return (PlanAction::Update, None);
+    }
+    let decision_name = match choice {
+        ConflictChoice::Rename => "rename",
+        ConflictChoice::Update => "update",
+        ConflictChoice::Replace => "replace",
+        ConflictChoice::Skip => unreachable!("handled above"),
+    };
+    (
+        PlanAction::Block,
+        Some(Conflict {
+            kind: conflict
+                .as_ref()
+                .map(|item| item.kind.clone())
+                .unwrap_or(ConflictKind::IdentityCollision),
+            message: format!(
+                "{decision_name} is not safe for this conflict; choose another destination name or skip"
+            ),
+        }),
+    )
 }
 
 fn classify_destination(
@@ -541,12 +639,7 @@ fn reject_generated_id_collisions(operations: &mut [PlanOperation]) {
     for indices in by_id.values() {
         let identities: BTreeSet<_> = indices
             .iter()
-            .map(|index| {
-                (
-                    normalize_identity(&operations[*index].ams_name),
-                    operations[*index].material_settings_fingerprint.as_str(),
-                )
-            })
+            .map(|index| normalize_identity(&operations[*index].ams_name))
             .collect();
         if identities.len() > 1 {
             for index in indices {
