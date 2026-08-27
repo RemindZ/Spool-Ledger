@@ -187,10 +187,7 @@ fn stages_normal_and_flattened_profiles_for_selected_nozzles_only() {
     assert!(custom.get("include").is_none());
     let golden = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../fixtures/expected/Northstar PLA Aurora @Bambu Lab H2C 0.4 nozzle.json");
-    assert_eq!(
-        std::fs::read(custom_path).unwrap(),
-        std::fs::read(golden).unwrap()
-    );
+    assert_eq!(custom, read_json(&golden));
 }
 
 #[test]
