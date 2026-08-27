@@ -655,7 +655,7 @@ fn reject_generated_id_collisions(operations: &mut [PlanOperation]) {
 
 fn bambu_filament_id(display_name: &str, user_id: &str) -> String {
     let digest = md5::compute(format!("{display_name}@{user_id}"));
-    format!("P{:x}", digest)[..8].to_owned()
+    format!("P{digest:x}")[..8].to_owned()
 }
 
 fn sha256_hex(value: &[u8]) -> String {
