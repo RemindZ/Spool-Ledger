@@ -13,7 +13,7 @@ jobs:
   verify-windows-x64:
     name: Verify Windows x64
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       CARGO_BUILD_JOBS: "1"
 

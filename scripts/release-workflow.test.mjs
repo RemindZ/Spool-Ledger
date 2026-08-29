@@ -103,6 +103,7 @@ describe("release workflow policy", () => {
     const ci = read(".github/workflows/ci.yml");
     expect(ci).toContain("pull_request:");
     expect(ci).not.toContain("self-hosted");
+    expect(ci).toContain("timeout-minutes: 75");
     expect(ci).not.toContain("cargo-deny-action@");
     expect(ci).toContain("cargo install cargo-deny --version 0.20.2 --locked");
     expect(ci).toContain(
