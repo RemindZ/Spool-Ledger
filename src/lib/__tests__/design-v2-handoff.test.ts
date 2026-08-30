@@ -1,0 +1,209 @@
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const root = fileURLToPath(new URL("../../..", import.meta.url));
+const read = (path: string) => readFileSync(`${root}/${path}`, "utf8");
+
+describe("Spool Ledger design v2 handoff", () => {
+  it("uses the approved identity assets without redrawing the logo", () => {
+    const app = read("src/App.svelte");
+    const chrome = read("src/lib/components/AppChrome.svelte");
+
+    expect(app).toContain(
+      "<title>Spool Ledger · Bambu Filament Migrator</title>",
+    );
+    expect(chrome).toContain('src="/spool-ledger-lockup-transparent.png"');
+    expect(chrome).toContain('alt="Spool Ledger · Bambu Filament Migrator"');
+    expect(app).not.toContain('class="brand-spool"');
+    expect(chrome).not.toContain('class="brand-spool"');
+    expect(app).toContain('src="/spool-ledger-logo-light.png"');
+    expect(app).toContain('src="/spool-ledger-logo-dark.png"');
+  });
+
+  it("copies every production identity asset byte-for-byte from the handoff", () => {
+    for (const name of [
+      "spool-ledger-lockup-transparent.png",
+      "spool-ledger-logo-light.png",
+      "spool-ledger-logo-dark.png",
+      "spool-ledger-readme-hero.png",
+    ]) {
+      const production = `${root}/public/${name}`;
+      expect(existsSync(production), name).toBe(true);
+      expect(readFileSync(production)).toEqual(
+        readFileSync(`${root}/design-v2/${name}`),
+      );
+    }
+  });
+
+  it("uses the approved green-black dark palette and stable navigation surface", () => {
+    const css = read("src/app.css");
+
+    expect(css.match(/--ground:\s*#0d1410/gi)).toHaveLength(2);
+    expect(css.match(/--surface:\s*#131d18/gi)).toHaveLength(2);
+    expect(css.match(/--surface-raised:\s*#1a2720/gi)).toHaveLength(2);
+    expect(css.match(/--text:\s*#eef4f0/gi)).toHaveLength(2);
+    expect(css.match(/--line:\s*#2d4136/gi)).toHaveLength(2);
+    expect(css.match(/--bambu:\s*#10bd52/gi)).toHaveLength(2);
+    expect(css).toMatch(
+      /\.workspace-tabs\s*\{[^}]*background:\s*var\(--surface\)/s,
+    );
+  });
+
+  it("styles source selection as a complete custom checkbox state family", () => {
+    const sourceTable = read("src/lib/components/SourceTable.svelte");
+    const css = read("src/app.css");
+
+    expect(sourceTable).toContain('class="source-profile-check"');
+    expect(css).toMatch(/\.source-profile-check\s*\{[^}]*appearance:\s*none/s);
+    expect(css).toContain(".source-profile-check:hover");
+    expect(css).toContain(".source-profile-check:checked");
+    expect(css).toContain(".source-profile-check:focus-visible");
+    expect(css).toContain(".source-profile-check:disabled");
+  });
+
+  it("uses square workflow tiles, registration notches, one help glyph, and one transition treatment", () => {
+    const naming = read("src/lib/components/NamingPanel.svelte");
+    const css = read("src/app.css");
+
+    expect(naming).not.toContain("CircleHelp");
+    expect(naming).toContain(
+      '<span class="help-glyph" aria-hidden="true">?</span>',
+    );
+    expect(css).toMatch(
+      /\.workflow-steps li span\s*\{[^}]*border-radius:\s*5px/s,
+    );
+    expect(css).toContain(".source-rail::before");
+    expect(css).toContain(".destination-rail::before");
+    expect(css).toMatch(
+      /\.workspace-view\s*\{[^}]*animation:\s*workspace-view-in/s,
+    );
+    expect(css).toContain("@keyframes workspace-view-in");
+  });
+
+  it("keeps the checked-in interactive reference identical to the approved v2 handoff", () => {
+    expect(
+      readFileSync(`${root}/docs/design/bambu-filament-migrator.html`),
+    ).toEqual(readFileSync(`${root}/design-v2/bambu-filament-migrator.html`));
+    for (const name of [
+      "spool-ledger-lockup-transparent.png",
+      "spool-ledger-logo-light.png",
+      "spool-ledger-logo-dark.png",
+    ]) {
+      expect(existsSync(`${root}/docs/design/${name}`), name).toBe(true);
+      expect(readFileSync(`${root}/docs/design/${name}`)).toEqual(
+        readFileSync(`${root}/design-v2/${name}`),
+      );
+    }
+  });
+
+  it("keeps synthetic inventory and onboarding captures on the production identity", () => {
+    const fixture = read("tests/visual/FixtureApp.svelte");
+
+    expect(fixture).toContain('state === "initial" || state === "setup"');
+    expect(fixture).toContain('src="/spool-ledger-lockup-transparent.png"');
+    expect(fixture).toContain('src="/spool-ledger-logo-light.png"');
+    expect(fixture).toContain('src="/spool-ledger-logo-dark.png"');
+  });
+
+  it("keeps the production design contract aligned with v2 identity and official-only safety", () => {
+    const design = read("docs/design/DESIGN.md");
+    const brand = read("docs/design/brand-spec.md");
+
+    expect(design).toContain("# Spool Ledger Design Handoff");
+    expect(design).toContain("Bambu Filament Migrator");
+    expect(design).toContain("`#0D1410`");
+    expect(design).toContain("first-run setup");
+    expect(design).toContain("Target profile required");
+    expect(design).toContain("Registered source row");
+    expect(design).not.toContain("Show custom printers");
+    expect(read("DESIGN.md").replaceAll("\r\n", "\n")).toBe(
+      read("docs/design/DESIGN.md").replaceAll("\r\n", "\n"),
+    );
+    expect(brand).toContain("# Spool Ledger brand specification");
+    expect(brand).toContain("`#0D1410`");
+    expect(existsSync(`${root}/docs/design/brand-identity-directions.md`)).toBe(
+      true,
+    );
+  });
+
+  it("keeps the authoritative scope aligned with the shipped identity and setup contracts", () => {
+    const scope = read("SCOPE.md");
+
+    expect(scope).toContain("# Spool Ledger - Bambu Filament Migrator Scope");
+    expect(scope).toContain("**Spool Ledger**");
+    expect(scope).toContain("first-run setup");
+    expect(scope).toContain("enabled official printers");
+    expect(scope).toContain("installed printer artwork");
+    expect(scope).toContain("Target profile required");
+    expect(scope).toContain("workspace preferences schema version 2");
+    expect(scope).toContain("Public product name: **Spool Ledger**");
+    expect(scope).toContain(
+      "Permanent descriptor: **Bambu Filament Migrator**",
+    );
+    expect(scope).not.toContain(
+      "Public project name: **Bambu Filament Migrator**",
+    );
+  });
+
+  it("keeps project instructions, documentation media, and demo data truthful", () => {
+    const claude = read("CLAUDE.md");
+    const readme = read("README.md");
+    const fixture = read("tests/visual/FixtureApp.svelte");
+
+    for (const phrase of [
+      "Spool Ledger",
+      "Bambu Filament Migrator",
+      "Never write to live",
+      "official printers",
+      "created_local",
+      "windows_subsystem",
+      "--bundles nsis",
+      "No em dashes",
+    ]) {
+      expect(claude, phrase).toContain(phrase);
+    }
+    for (const name of [
+      "inventory-loading.png",
+      "setup-workspace.png",
+      "review-plan.png",
+      "run-evidence.png",
+      "restore-preview.png",
+      "theme-comparison.png",
+    ]) {
+      expect(readme, name).toContain(`docs/screenshots/${name}`);
+      expect(existsSync(`${root}/docs/screenshots/${name}`), name).toBe(true);
+    }
+    for (const name of [
+      "spool-ledger-product-tour.mp4",
+      "spool-ledger-product-tour-voiceover.mp4",
+    ]) {
+      expect(readme, name).toContain(`docs/demo/${name}`);
+      expect(existsSync(`${root}/docs/demo/${name}`), name).toBe(true);
+    }
+    expect(existsSync(`${root}/docs/demo/MUSIC-LICENSE.md`)).toBe(true);
+    expect(existsSync(`${root}/docs/demo/VOICEOVER-SCRIPT.md`)).toBe(true);
+    expect(readme).not.toContain("Printer-selectable");
+    expect(readme).not.toContain("AMS-ready");
+    expect(fixture).not.toMatch(/Polymaker|Sunlu/i);
+  });
+
+  it("makes Spool Ledger dominant in repository and desktop identity surfaces", () => {
+    const readme = read("README.md");
+    const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
+
+    expect(readme).toContain(
+      'src="public/spool-ledger-lockup-transparent.png"',
+    );
+    expect(readme).not.toContain('src="public/spool-ledger-readme-hero.png"');
+    expect(readme).toContain('<h1 align="center">Spool Ledger</h1>');
+    expect(readme).toContain("<strong>Bambu Filament Migrator</strong>");
+    expect(readme).not.toContain(
+      "approved product design, interactive UI prototype",
+    );
+    expect(tauri.productName).toBe("Spool Ledger");
+    expect(tauri.app.windows[0].title).toBe(
+      "Spool Ledger · Bambu Filament Migrator",
+    );
+  });
+});

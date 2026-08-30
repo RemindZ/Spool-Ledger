@@ -1,0 +1,27 @@
+1
+00:00:00,400 --> 00:00:01,900
+Meet Spool Ledger.
+
+2
+00:00:05,400 --> 00:00:10,033
+Your filament settings already work. Moving slicers should not mean rebuilding them.
+
+3
+00:00:12,400 --> 00:00:18,700
+Choose the profiles and official printers you want. Review the exact local plan before anything changes.
+
+4
+00:00:20,400 --> 00:00:24,200
+See every output, conflict, and missing dependency before commit.
+
+5
+00:00:27,400 --> 00:00:32,800
+Local creation, Bambu loading, cloud IDs, and AMS checks stay separate.
+
+6
+00:00:35,400 --> 00:00:39,767
+Restore only run-owned paths. Files changed later are preserved.
+
+7
+00:00:42,400 --> 00:00:45,233
+Review the workflow and download Spool Ledger.

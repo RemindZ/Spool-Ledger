@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1280, initial-scale=1" />
+  <title>Spool Ledger GitHub social preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 1280px; height: 640px; margin: 0; overflow: hidden; }
+    body { display: grid; place-items: center; background: #0D1410; color: #EEF4F0; font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+    .canvas { position: relative; width: 1280px; height: 640px; padding: 92px 104px; overflow: hidden; background: #0D1410; }
+    .frame { position: absolute; inset: 28px; border: 2px solid #2D4136; border-radius: 30px; }
+    .registration { position: absolute; right: 28px; top: 28px; width: 22px; height: 22px; border-radius: 5px; background: #10BD52; }
+    .content { position: relative; z-index: 1; height: 100%; display: grid; place-items: center; padding: 0 42px 34px; }
+    .lockup { width: min(100%, 1000px); height: auto; display: block; object-fit: contain; }
+    .source-label { position: absolute; left: 106px; bottom: 54px; color: #A7B8AE; font: 18px "Cascadia Mono", Consolas, monospace; letter-spacing: 1px; }
+    .source-label::before { content: ""; display: inline-block; width: 28px; height: 4px; margin: 0 12px 4px 0; border-radius: 3px; background: #F08A4E; }
+  </style>
+</head>
+<body>
+  <main class="canvas" data-od-id="github-social-preview">
+    <div class="frame" aria-hidden="true"></div><div class="registration" aria-hidden="true"></div>
+    <div class="content">
+      <img class="lockup" src="spool-ledger-lockup-dark.png" alt="Spool Ledger — Bambu Filament Migrator" />
+    </div>
+    <div class="source-label">Local-first profile migration</div>
+  </main>
+</body>
+</html>

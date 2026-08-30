@@ -1,0 +1,26 @@
+{
+  "type": "filament",
+  "name": "Generic PLA @BBL H2C",
+  "inherits": "Generic PLA @base",
+  "from": "system",
+  "setting_id": "GFSL99_21",
+  "instantiation": "true",
+  "compatible_printers": [
+    "Bambu Lab H2C 0.2 nozzle",
+    "Bambu Lab H2C 0.4 nozzle",
+    "Bambu Lab H2C 0.6 nozzle",
+    "Bambu Lab H2C 0.8 nozzle"
+  ],
+  "filament_extruder_variant": [
+    "Direct Drive Standard",
+    "Direct Drive High Flow",
+    "Direct Drive E3D High Flow"
+  ],
+  "filament_flow_ratio": ["0.99", "0.99", "0.99"],
+  "filament_max_volumetric_speed": ["12", "12", "12"],
+  "nozzle_temperature": ["220", "220", "220"],
+  "nozzle_temperature_initial_layer": ["220", "220", "220"],
+  "filament_retraction_length": ["0.4", "0.4", "0.4"],
+  "filament_wipe": ["1", "1", "1"],
+  "filament_start_gcode": ["; synthetic target gcode\n"]
+}

@@ -1,0 +1,161 @@
+{
+  "brandId": "spool-ledger",
+  "hook": {
+    "headline": "Your filament settings already work. Move them without rebuilding them.",
+    "altHeadlines": [
+      "What if moving slicers did not mean starting over?",
+      "A migration tool that refuses to guess"
+    ],
+    "strategies": ["value", "curiosity", "contrarian"]
+  },
+  "features": [
+    {
+      "key": "review",
+      "heading": "See the exact plan before anything changes",
+      "benefitLines": [
+        "Preview every local output name",
+        "Resolve conflicts before commit",
+        "Approve one frozen plan"
+      ],
+      "rationale": "The product centers operator review and deterministic planning before writes.",
+      "sourceRoute": "README.md#workflow"
+    },
+    {
+      "key": "evidence",
+      "heading": "Know what was created and what is still pending",
+      "benefitLines": [
+        "Local creation stays separate from cloud state",
+        "Bambu loading and cloud IDs are recorded independently",
+        "AMS verification remains operator-confirmed"
+      ],
+      "rationale": "The evidence ledger prevents local, cloud, and AMS states from being collapsed into one claim.",
+      "sourceRoute": "README.md#local-and-cloud-truth"
+    },
+    {
+      "key": "restore",
+      "heading": "Restore only what the run still owns",
+      "benefitLines": [
+        "Preview each run-owned path",
+        "Preserve files changed after migration",
+        "Avoid whole-account restore"
+      ],
+      "rationale": "Path-owned journals and hash checks keep restore bounded and preserve later external changes.",
+      "sourceRoute": "README.md#journal-owned-restore"
+    }
+  ],
+  "positioning": {
+    "differentiator": "A local-first Windows migration workstation that resolves inherited filament settings, freezes exact local outputs for review, and records evidence without claiming cloud or AMS states it cannot prove."
+  },
+  "audience": {
+    "who": "Windows users who already trust filament presets in OrcaSlicer or Bambu Studio and want those settings available for official Bambu printers without rebuilding each profile by hand.",
+    "painPoints": [
+      "Re-entering known filament settings is slow and easy to get wrong.",
+      "Profile inheritance makes the effective values hard to inspect manually.",
+      "A local file, a cloud ID, and AMS visibility are different states but are often treated as one.",
+      "Broad restore operations can overwrite files changed after migration."
+    ]
+  },
+  "customerLanguage": {
+    "use": [
+      "trusted filament settings",
+      "review the plan",
+      "local profiles",
+      "official printers",
+      "restore only what the run owns"
+    ],
+    "avoid": [
+      "one-click cloud migration",
+      "automatic AMS sync",
+      "official Bambu tool",
+      "guaranteed cloud persistence"
+    ]
+  },
+  "objections": [
+    {
+      "objection": "Will this edit my source profiles while it scans them?",
+      "response": "Discovery and planning are read-only. Source files are resolved for review and are not modified."
+    },
+    {
+      "objection": "Does local creation prove the profile is in Bambu cloud or visible in AMS?",
+      "response": "No. Local creation, Bambu Studio loading, cloud ID assignment, and human AMS verification are recorded as separate evidence levels."
+    },
+    {
+      "objection": "Can restore overwrite work changed after the migration?",
+      "response": "A changed file is excluded from restore rather than overwritten."
+    }
+  ],
+  "switchingForces": {
+    "push": "Rebuilding profiles by hand repeats work and can lose settings hidden through inheritance.",
+    "pull": "A reviewed local plan can preserve trusted settings and generate the exact selected outputs.",
+    "habit": "Manual recreation is familiar and feels controllable even when it is repetitive.",
+    "anxiety": "Users do not want a migration tool to overwrite profiles, invent cloud evidence, or touch unrelated account files."
+  },
+  "proofPoints": [
+    {
+      "claim": "Discovery and planning are read-only.",
+      "source": "README.md#safety-model"
+    },
+    {
+      "claim": "A frozen plan records source fingerprints and exact destination byte state.",
+      "source": "README.md#safety-model"
+    },
+    {
+      "claim": "Restore preserves files changed externally after commit.",
+      "source": "README.md#safety-model"
+    },
+    {
+      "claim": "Spool Ledger requests, stores, and transmits no Bambu credentials.",
+      "source": "README.md#local-and-cloud-truth"
+    },
+    {
+      "claim": "Copied-root acceptance reproduces 16 slicing presets, 64 custom profiles, and 64 sidecars in a temporary account copy while protected live-root hashes remain unchanged.",
+      "source": "README.md#supported-baseline"
+    },
+    {
+      "claim": "The approved live demonstration proves local creation, Bambu Studio loading, and unique cloud IDs for two Overture profiles; AMS verification remains pending.",
+      "source": "README.md#product-tour"
+    }
+  ],
+  "cta": "Review the workflow and download Spool Ledger",
+  "narration": [
+    {
+      "act": "logo",
+      "text": "Meet Spool Ledger."
+    },
+    {
+      "act": "hook",
+      "text": "Your filament settings already work. Moving slicers should not mean rebuilding them."
+    },
+    {
+      "act": "demo",
+      "text": "Choose the profiles and official printers you want. Spool Ledger resolves the settings and shows the exact local plan before anything changes."
+    },
+    {
+      "act": "feature-0",
+      "text": "Review every output, conflict, and missing dependency before commit."
+    },
+    {
+      "act": "feature-1",
+      "text": "After the run, local creation, Bambu loading, cloud IDs, and AMS checks stay separate."
+    },
+    {
+      "act": "feature-2",
+      "text": "If you restore later, files changed by another process are preserved."
+    },
+    {
+      "act": "end",
+      "text": "Review the workflow and download Spool Ledger."
+    }
+  ],
+  "social": {
+    "x": {
+      "hook": "Your filament settings already work.",
+      "headline": "Move them into Bambu Studio without rebuilding every profile. Review the exact local plan first."
+    },
+    "linkedin": {
+      "hook": "Profile migration needs receipts, not guesses.",
+      "headline": "Spool Ledger resolves trusted filament settings, freezes the local plan for review, and records local, cloud, and AMS evidence separately."
+    },
+    "vertical": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Bambulab",
+  "version": "02.01.00.19",
+  "filament_list": [
+    {
+      "name": "Northstar PLA Aurora @base",
+      "sub_path": "filament/Northstar/Northstar PLA Aurora @base.json"
+    },
+    {
+      "name": "Northstar PLA Aurora @BBL X1C",
+      "sub_path": "filament/Northstar/Northstar PLA Aurora @BBL X1C.json"
+    }
+  ]
+}

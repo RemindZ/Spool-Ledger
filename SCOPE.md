@@ -1,14 +1,14 @@
-# Bambu Filament Migrator - Scope
+# Spool Ledger - Bambu Filament Migrator Scope
 
-- **Status:** Draft for review
-- **Date:** 2026-08-19
+- **Status:** Windows implementation verified; built-app dogfood and operator cloud/AMS acceptance pending
+- **Date:** 2026-08-23
 - **Owner:** Remindz
 - **Repository:** `Remindz/bambu-filament-migrator`
 - **License:** AGPL-3.0
 
 ## 1. Product statement
 
-Bambu Filament Migrator is a lightweight cross-platform desktop application that converts OrcaSlicer and Bambu Studio filament presets into Bambu Studio slicing presets and AMS custom-filament identities without requiring the user to click through Bambu Studio's custom-filament UI for every material, printer, and nozzle.
+**Spool Ledger**, permanently described as **Bambu Filament Migrator**, is a lightweight cross-platform desktop application that converts OrcaSlicer and Bambu Studio filament presets into Bambu Studio slicing presets and AMS custom-filament identities without requiring the user to click through Bambu Studio's custom-filament UI for every material, printer, and nozzle.
 
 The application uses a Tauri 2 shell, a Rust backend, and a Svelte 5 + TypeScript frontend. It ships as one user-facing download per supported operating system and performs all profile inspection and generation locally.
 
@@ -56,7 +56,7 @@ For a Bambu user source, the default operation reuses the slicing preset and cre
 
 Official target printers and nozzles are discovered from the installed Bambu Studio manifests and profiles rather than maintained as a fixed model list.
 
-User-created/custom printer presets are available behind a **Show custom printers** toggle. They are visibly marked as unverified because a syntactically valid profile does not prove that a physical printer or AMS accepts it.
+Only official target printers are presented in v1. User-created/custom printer presets are outside the supported target matrix until a future adapter is separately characterized and accepted.
 
 ### G-005 - Work across desktop platforms
 
@@ -145,7 +145,20 @@ Source profile directories are read-only from the application's perspective. Mig
 
 ## 7. Primary user flow
 
-The application uses one desktop workspace rather than a multi-page wizard.
+The application uses a first-run setup for durable defaults, followed by one desktop workspace for discovery, selection, planning, execution, and restore. The migration itself is not a multi-page wizard.
+
+### 7.0 First-run setup
+
+After the real source and target catalogs load, a fresh installation presents first-run setup before the normal workspace. The setup records:
+
+- Source applications: OrcaSlicer, Bambu Studio, or both, limited to applications with eligible discovered sources.
+- Source kinds: factory/system, user/custom, or both, limited to valid combinations in the real catalog.
+- One or more enabled official printers discovered from the installed Bambu target catalog.
+- At least one supported default nozzle for every enabled printer.
+
+The setup cannot complete unless the selected source filters match at least one eligible source and every enabled printer has a supported nozzle. It does not select filament profiles or start planning automatically. Preferences are stored atomically in workspace preferences schema version 2. Version 1 preferences migrate without losing filter, naming, account, or nozzle choices; previously selected official printers become enabled defaults and onboarding appears once after the schema upgrade.
+
+Newly discovered printers remain disabled until the user enables them. Custom printers are never exposed by setup or derived from old preferences.
 
 ### 7.1 Discovery bar
 
@@ -191,15 +204,32 @@ Each source row exposes its origin, inheritance health, vendor, material, and co
 
 The right panel contains:
 
-- Official Bambu target printers discovered from installed manifests.
-- A **Show custom printers** toggle.
+- Enabled official Bambu target printers discovered from installed manifests.
 - Per-printer expansion.
 - Per-nozzle checkboxes.
 - Extruder-variant information.
 - Select-all-nozzles and clear controls per printer.
+- A **Manage enabled printers** cogwheel that opens a Cancel-first native dialog with draft state.
+- Installed printer artwork when a validated image is available under the approved Bambu catalog root, with a local glyph fallback.
 - Warnings for target templates that cannot be resolved.
 
+Only enabled official printers can appear in plan requests. Saving printer management atomically applies the enabled-printer and nozzle defaults; canceling discards the draft. Every enabled printer retains at least one supported nozzle, newly discovered printers remain disabled, and disabling a printer removes its nozzle selection and invalidates a stale plan.
+
+The printer list is vertically scrollable within a viewport-aware bounded destination region. Printer count cannot make the application body grow unpredictably or scroll horizontally at desktop, medium, narrow, or 320 px widths.
+
 Selecting a printer does not silently select every nozzle. The final nozzle selection is always visible in the plan.
+
+#### 7.3.1 Target-template dependencies
+
+Plan building returns a typed `needs_resolution` result when an expected target template is absent or ambiguous. It aggregates every affected source and target rather than parsing backend error text or stopping at the first problem. A native dialog headed **Target profile required** names the expected template, material, official printer, nozzle, diagnostic, and every affected selected filament.
+
+Resolution options are limited to server-validated candidates from current catalogs:
+
+- Use an installed Bambu profile whose resolved material and official printer/nozzle compatibility match.
+- Include and migrate a validated Bambu user source that can safely provide the required target-effective profile.
+- Remove every affected filament from the selection.
+
+The app never fabricates a missing target, silently substitutes a vendor profile, or accepts arbitrary frontend-supplied profile names or source IDs. Cancel leaves setup unchanged and produces no plan. A submitted decision is revalidated against the current opaque catalogs, then the real backend planner is retried. The frozen plan records and fingerprints the accepted dependency so later source or destination changes fail before staging.
 
 ### 7.4 Naming panel
 
@@ -322,9 +352,10 @@ Frontend commands operate on opaque IDs and typed data transfer objects for:
 
 - Discovery status.
 - Source summaries and filter facets.
-- Target summaries.
+- Target summaries and opaque installed-artwork availability.
+- Raw printer artwork bytes requested only by current opaque catalog and official printer IDs.
 - Naming previews.
-- Migration plans.
+- Ready plans or typed target-template dependency issues and decisions.
 - Conflict decisions.
 - Run progress and receipts.
 
@@ -337,6 +368,7 @@ No database is used in v1. Small versioned JSON files store:
 - User-selected slicer paths.
 - Saved naming/filter presets.
 - Application preferences.
+- Workspace preferences schema version 2, including completion of first-run setup, enabled official printer IDs, and default supported nozzles.
 - Migration receipts.
 
 Receipts and backups have explicit retention controls. The application never deletes them silently.
@@ -419,6 +451,10 @@ For every selected printer/nozzle target, the writer:
 9. Generates the profile JSON and its version-specific paired `.info` sidecar. The adapter defines the exact destination subdirectory, filename pairing, JSON fields, sidecar encoding, and initial values for `sync_info`, `user_id`, `setting_id`, `base_id`, and `updated_time`. Unsupported or uncharacterized combinations block writing.
 
 Vector normalization never assumes two extruders or copies the first value into every variant. Target defaults are retained where the source does not define an equivalent variant, as required for Standard, High Flow, E3D, and future profiles. Every normalization rule must have a captured slicer result and golden fixture; generic resize logic is not an accepted substitute.
+
+Target-template lookup is based on normalized material and a selected official printer/nozzle target. An exact valid `Generic {material} @BBL {printer_code}` remains automatic. When that name is absent, compatible installed Bambu system profiles and explicitly selected validated Bambu user sources may be presented as typed choices, but no fallback is applied silently. Candidate validation resolves `filament_type`, checks official target compatibility, applies the complete field policy, and retains catalog provenance. Decisions are cached only within one plan build and are revalidated before execution.
+
+Installed printer artwork follows the same opaque-catalog boundary. The backend locates fixed-name image candidates beneath canonical approved Bambu manifest/vendor roots, rejects symlinks and escapes, retains paths only in server state, and exposes only an availability flag plus validated raw image bytes. Installed artwork is not copied into public or release assets.
 
 ## 12. Identity and synchronization
 
@@ -564,8 +600,16 @@ The release pipeline supports Windows signing and macOS signing/notarization whe
 
 The interface must feel like a maintained desktop product rather than a raw configuration editor.
 
+- **Spool Ledger** is the dominant product name; **Bambu Filament Migrator** remains a permanent descriptor in the lockup, desktop title, repository documentation, and accessibility text.
+- Approved supplied logo assets are used exactly rather than redrawn or approximated in CSS or SVG.
+- Bambu green identifies destinations, selections, primary actions, and verified states; Orca orange is limited to source provenance.
+- The dark workspace uses the approved green-black palette, and workspace navigation stays on stable theme surfaces without purple interpolation.
 - System, light, and dark themes.
 - Keyboard-accessible controls and visible focus states.
+- Native dialogs open with Cancel focused, support Escape and backdrop dismissal, and restore focus to the invoking control.
+- Source-selection checkboxes have legible rest, hover, checked, focus-visible, and disabled states.
+- Help controls show one legible question mark rather than a second circled icon.
+- Workspace changes use one restrained transition treatment and honor reduced-motion preferences.
 - No status communicated through color alone.
 - Responsive desktop layout with independently scrollable source, destination, and plan regions.
 - Large profile catalogs remain usable through virtualized rows or equivalent measured rendering.
@@ -573,8 +617,9 @@ The interface must feel like a maintained desktop product rather than a raw conf
 - Errors name the affected profile/path and explain the next action.
 - Raw JSON is available for diagnostics but never required for normal use.
 - Progress reflects discovery, planning, backup, write, launch, and synchronization separately.
+- Local inventory progress uses real loaded-of-total values and the approved theme-specific identity assets; it never fabricates counts.
 
-A detailed visual design system is an implementation-design deliverable, not part of this scope baseline.
+The checked-in interactive reference and `docs/design/DESIGN.md` define the detailed visual contract. Existing production behavior, schemas, adapters, and safety requirements remain authoritative when a prototype interaction conflicts with this scope.
 
 ## 18. Security and privacy
 
@@ -648,13 +693,18 @@ Every supported adapter/matrix row has golden inputs and expected canonical/outp
 
 ### 20.3 Frontend tests
 
+- Version 1-to-2 workspace migration, fresh and returning first-run behavior, and official-only enabled-printer sanitization.
+- First-run source/default validation and atomic completion.
 - Filter combinations and persistent selection.
-- Printer/nozzle selection.
+- Printer/nozzle selection, destination manager cancel/save behavior, and bounded scrolling.
+- Installed printer artwork load, cleanup, rejection, and glyph fallback.
 - Naming preview and invalid-rule blocking.
+- Typed target-template dependency choices, removal of all affected sources, cancellation, retry payloads, and no execution before a ready plan.
 - Conflict-decision updates.
 - Plan rendering.
-- Keyboard navigation and critical accessibility checks.
+- Keyboard navigation, dialog focus restoration, and critical accessibility checks.
 - Progress and partial-failure states.
+- Light/dark visual fixtures for initial inventory, first-run setup, ready workspace, printer manager, target dependency, and artwork fallback at desktop and 320 px widths.
 
 ### 20.4 Integration tests
 
@@ -704,9 +754,9 @@ The user can independently select printers and nozzle diameters. Only selected c
 
 A newly installed official Bambu printer profile can appear without an application code change when its manifest and schema match a supported adapter.
 
-### AC-007 - Custom-printer isolation
+### AC-007 - Official-target boundary
 
-User-created printer presets remain hidden until **Show custom printers** is enabled and are marked unverified throughout planning and results.
+Only official printers discovered from installed Bambu manifests are presented as selectable targets. User-created/custom printer presets are not exposed by the v1 interface.
 
 ### AC-008 - No Bambu creation clicks
 
@@ -743,6 +793,26 @@ For every supported Bambu adapter, redistribution-safe official-UI fixtures defi
 ### AC-016 - Destination eligibility and offline truth
 
 Only an explicitly selected eligible Bambu account root can receive writes. Empty, stale, default/local, backup, and unrecognized roots are non-writable by default. Before an offline commit, the UI states that cloud persistence and AMS availability remain unverified until normal Bambu synchronization and operator acceptance occur.
+
+### AC-017 - First-run defaults
+
+After real catalogs load, a fresh or version 1 workspace presents first-run setup exactly once. Completion requires a valid source application/kind combination, at least one enabled official printer, and at least one supported nozzle per enabled printer. It persists schema version 2 atomically, selects no source filaments, and never exposes a custom printer.
+
+### AC-018 - Enabled destination management
+
+The user can reopen **Manage enabled printers**, cancel without state changes, or atomically save enabled official printers and supported nozzle defaults. Only enabled official printers reach plan requests. Newly discovered printers remain disabled, and the destination list stays vertically bounded without body-level horizontal overflow at 320 px and wider supported layouts.
+
+### AC-019 - Installed artwork boundary
+
+Available installed printer artwork is read only from canonical approved Bambu catalog roots through current opaque catalog and official printer IDs. Paths never reach the frontend, symlinks and escapes are rejected, artwork failures use an accessible local fallback, and proprietary installed artwork is not redistributed in application assets.
+
+### AC-020 - Target-template resolution
+
+A missing or ambiguous target template yields a typed **Target profile required** result naming every affected filament. Only current server-validated compatible installed Bambu profiles or validated Bambu user sources are selectable. Cancel produces no plan; removal deselects every affected source; no target is fabricated or substituted silently; accepted decisions are fingerprinted in the frozen plan and revalidated before staging.
+
+### AC-021 - Spool Ledger identity
+
+Spool Ledger is dominant across the desktop, repository, onboarding, inventory, and documentation while Bambu Filament Migrator remains a permanent descriptor. The supplied identity assets are byte-identical to the approved handoff, themes preserve their semantic green/orange roles, and the 17-state light/dark visual matrix passes without console errors or horizontal body overflow at 320 px.
 
 ## 22. Delivery phases
 
@@ -788,14 +858,18 @@ Exit gate: temporary-root integration tests cover success and injected failures;
 
 ### Phase 3 - Tauri workspace
 
+- First-run source and official-printer defaults.
 - Discovery bar.
 - Source filters/list.
-- Destination printer/nozzle selector.
+- Enabled destination printer/nozzle selector and manager.
+- Safe installed printer artwork.
 - Naming preview.
+- Typed target-template dependency resolution.
 - Plan/conflict table.
 - Progress and result views.
+- Spool Ledger identity and complete light/dark visual fixtures.
 
-Exit gate: the complete workflow runs against temporary fixture roots through the UI.
+Exit gate: the complete workflow runs against temporary fixture roots through the UI, the visual matrix covers all 17 required states in both themes, and a 320 px viewport has no body-level horizontal overflow.
 
 ### Phase 4 - Real Bambu verification
 
@@ -803,25 +877,30 @@ Exit gate: the complete workflow runs against temporary fixture roots through th
 - Launch behavior.
 - Synchronization monitor.
 - Windows Panchroma acceptance migration.
-- macOS and Linux real-installation acceptance.
+- macOS real-installation acceptance.
+- Linux remains deferred until issue demand establishes a release baseline.
 
-Exit gate: AC-001 through AC-016 have captured evidence for every claimed compatibility-matrix row.
+Exit gate: AC-001 through AC-021 have captured evidence for every claimed compatibility-matrix row.
 
 ### Phase 5 - Public release
 
 - AGPL-3.0 license and notices.
 - README and contributor documentation.
 - Security and issue templates.
-- Cross-platform release workflow.
-- Checksums and signing support.
-- Draft release acceptance.
+- Protected-tag Windows and universal macOS release workflow.
+- SHA-256 manifests and GitHub provenance attestations.
+- Unsigned artifact disclosure; Apple Developer ID and Windows Authenticode signing remain deferred.
+- Machine-readable compatibility gate and draft release acceptance.
+- Completed-run Buy Me a Coffee link opened through one scoped system-browser permission.
+- Final pre-release step: upload `docs/marketing/videos/spool-ledger-promo-v2.mp4` as a GitHub user attachment and replace the README's linked poster fallback with the generated bare `https://github.com/user-attachments/assets/...` URL so GitHub renders the playable video with audio.
 
 Exit gate: public v1 artifacts and documentation match verified platform support without unsupported claims.
 
 ## 23. Public-project boundaries
 
-- Public project name: **Bambu Filament Migrator**.
-- Repository slug: `bambu-filament-migrator`.
+- Public product name: **Spool Ledger**.
+- Permanent descriptor: **Bambu Filament Migrator**.
+- Repository slug and compatibility identifier: `bambu-filament-migrator`.
 - GitHub owner: `Remindz`.
 - License: AGPL-3.0.
 - The README must state that the project is independent and is not affiliated with or endorsed by Bambu Lab or the OrcaSlicer project.

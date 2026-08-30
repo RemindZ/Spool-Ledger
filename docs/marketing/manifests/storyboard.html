@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spool Ledger — storyboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0d1410;
+    --surface: #131d18;
+    --surface2: #1a2720;
+    --line: #2d4136;
+    --ink: #eef4f0;
+    --ink2: #a7b8ae;
+    --ink3: #718078;
+    --brand: #009a3c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  .page { max-width: 880px; margin: 0 auto; }
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+  .brand-name { font-size: 28px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
+  .tagline { color: var(--ink2); margin: 0 0 12px; font-size: 15px; }
+  .meta { color: var(--ink3); font-size: 12px; font-family: "Consolas", "Courier New", monospace; margin: 0 0 20px; }
+  .voice-callout {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 14px;
+    color: var(--ink2);
+  }
+  .voice-callout .label { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
+  .voice-callout p.voice-text { margin: 0; font-style: italic; }
+  section.block { margin-bottom: 40px; }
+  .block-title {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+    margin: 0 0 16px;
+  }
+  .headline { font-size: 32px; font-weight: 700; margin: 0 0 20px; color: var(--ink); }
+  .label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); margin: 0 0 6px; }
+  .alt-headlines { margin: 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
+  .alt-headlines li { margin-bottom: 4px; }
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card-rank { margin: 0 0 6px; font-size: 11px; color: var(--brand); font-weight: 700; }
+  .card-heading { margin: 0 0 10px; font-size: 17px; color: var(--ink); }
+  .benefit-lines { margin: 0 0 12px; padding-left: 18px; font-size: 14px; color: var(--ink2); }
+  .benefit-lines li { margin-bottom: 3px; }
+  .rationale { margin: 0 0 10px; font-size: 12px; color: var(--ink3); }
+  .chip {
+    display: inline-block;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 2px 8px;
+    color: var(--ink2);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--ink3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .act-cell code { color: var(--brand); font-family: "Consolas", "Courier New", monospace; font-size: 12px; }
+  .cta { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  .differentiator { color: var(--ink2); margin: 0; }
+  footer.provenance {
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+    margin-top: 40px;
+    font-size: 12px;
+    color: var(--ink3);
+  }
+  .muted { color: var(--ink3); font-style: italic; }
+  .grounding-item { margin-bottom: 20px; font-size: 14px; color: var(--ink2); }
+  .grounding-item p { margin: 0 0 8px; }
+  .lang-row { line-height: 2; }
+  @media (max-width: 640px) {
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <p class="brand-name">Spool Ledger</p>
+    <p class="tagline">Move trusted filament profiles without rebuilding them</p>
+    <p class="meta">Storyboard generated 2026-08-26T06:58:28.485Z</p>
+    <div class="voice-callout">
+      <p class="label">Voice rules</p>
+      <p class="voice-text">Precise local-first slicer workstation. Calm, compact, factual, and operator-led. Bambu green means destination, reviewed action, and verified local evidence. Orca orange is source provenance only and never the primary action. Keep local creation, Bambu loading, cloud ID assignment, and AMS verification separate. Never imply Bambu Lab or OrcaSlicer endorsement. No hype, no invented cloud claims, no decorative dashboard language.</p>
+    </div>
+  </header>
+
+  
+<section class="block">
+  <h2 class="block-title">Hook</h2>
+  <p class="headline">Your filament settings already work. Move them without rebuilding them. <code class="chip">value</code></p>
+  <div class="alt-headlines-wrap">
+    <p class="label">Alt headlines</p>
+    <ul class="alt-headlines"><li>What if moving slicers did not mean starting over? <code class="chip">curiosity</code></li><li>A migration tool that refuses to guess <code class="chip">contrarian</code></li></ul>
+  </div>
+</section>
+  
+<section class="block">
+  <h2 class="block-title">Features (ranked)</h2>
+  <div class="card-grid">
+  <article class="card">
+    <p class="card-rank">#1</p>
+    <h3 class="card-heading">See the exact plan before anything changes</h3>
+    <ul class="benefit-lines">
+      <li>Preview every local output name</li><li>Resolve conflicts before commit</li><li>Approve one frozen plan</li>
+    </ul>
+    <p class="rationale">The product centers operator review and deterministic planning before writes.</p>
+    <code class="chip">README.md#workflow</code>
+  </article>
+  <article class="card">
+    <p class="card-rank">#2</p>
+    <h3 class="card-heading">Know what was created and what is still pending</h3>
+    <ul class="benefit-lines">
+      <li>Local creation stays separate from cloud state</li><li>Bambu loading and cloud IDs are recorded independently</li><li>AMS verification remains operator-confirmed</li>
+    </ul>
+    <p class="rationale">The evidence ledger prevents local, cloud, and AMS states from being collapsed into one claim.</p>
+    <code class="chip">README.md#local-and-cloud-truth</code>
+  </article>
+  <article class="card">
+    <p class="card-rank">#3</p>
+    <h3 class="card-heading">Restore only what the run still owns</h3>
+    <ul class="benefit-lines">
+      <li>Preview each run-owned path</li><li>Preserve files changed after migration</li><li>Avoid whole-account restore</li>
+    </ul>
+    <p class="rationale">Path-owned journals and hash checks keep restore bounded and preserve later external changes.</p>
+    <code class="chip">README.md#journal-owned-restore</code>
+  </article></div>
+</section>
+  
+<section class="block">
+  <h2 class="block-title">Narration</h2>
+  <table class="narration-table">
+    <thead><tr><th>Act</th><th>VO line</th></tr></thead>
+    <tbody><tr><td class="act-cell"><code>logo</code></td><td>Meet Spool Ledger.</td></tr><tr><td class="act-cell"><code>hook</code></td><td>Your filament settings already work. Moving slicers should not mean rebuilding them.</td></tr><tr><td class="act-cell"><code>demo</code></td><td>Choose the profiles and official printers you want. Spool Ledger resolves the settings and shows the exact local plan before anything changes.</td></tr><tr><td class="act-cell"><code>feature-0</code></td><td>Review every output, conflict, and missing dependency before commit.</td></tr><tr><td class="act-cell"><code>feature-1</code></td><td>After the run, local creation, Bambu loading, cloud IDs, and AMS checks stay separate.</td></tr><tr><td class="act-cell"><code>feature-2</code></td><td>If you restore later, files changed by another process are preserved.</td></tr><tr><td class="act-cell"><code>end</code></td><td>Review the workflow and download Spool Ledger.</td></tr></tbody>
+  </table>
+</section>
+  
+<section class="block">
+  <h2 class="block-title">Social</h2>
+  <table class="social-table">
+    <thead><tr><th>Platform</th><th>Hook</th><th>Headline</th></tr></thead>
+    <tbody><tr><td>X</td><td>Your filament settings already work.</td><td>Move them into Bambu Studio without rebuilding every profile. Review the exact local plan first.</td></tr><tr><td>LinkedIn</td><td>Profile migration needs receipts, not guesses.</td><td>Spool Ledger resolves trusted filament settings, freezes the local plan for review, and records local, cloud, and AMS evidence separately.</td></tr></tbody>
+  </table>
+</section>
+  
+<section class="block">
+  <h2 class="block-title">CTA &amp; positioning</h2>
+  <p class="cta">Review the workflow and download Spool Ledger</p>
+  <p class="differentiator">A local-first Windows migration workstation that resolves inherited filament settings, freezes exact local outputs for review, and records evidence without claiming cloud or AMS states it cannot prove.</p>
+</section>
+  
+<section class="block">
+  <h2 class="block-title">Grounding</h2>
+  
+  <div class="grounding-item">
+    <p class="label">Audience</p>
+    <p>Windows users who already trust filament presets in OrcaSlicer or Bambu Studio and want those settings available for official Bambu printers without rebuilding each profile by hand.</p>
+    <ul class="benefit-lines"><li>Re-entering known filament settings is slow and easy to get wrong.</li><li>Profile inheritance makes the effective values hard to inspect manually.</li><li>A local file, a cloud ID, and AMS visibility are different states but are often treated as one.</li><li>Broad restore operations can overwrite files changed after migration.</li></ul>
+  </div>
+  <div class="grounding-item">
+    <p class="label">Customer language</p>
+    <p class="lang-row">use: <code class="chip">trusted filament settings</code> <code class="chip">review the plan</code> <code class="chip">local profiles</code> <code class="chip">official printers</code> <code class="chip">restore only what the run owns</code></p>
+    <p class="lang-row">avoid: <code class="chip">one-click cloud migration</code> <code class="chip">automatic AMS sync</code> <code class="chip">official Bambu tool</code> <code class="chip">guaranteed cloud persistence</code></p>
+  </div>
+  <div class="grounding-item">
+    <p class="label">Switching forces (JTBD)</p>
+    <table><tbody><tr><td class="act-cell"><code>Push</code></td><td>Rebuilding profiles by hand repeats work and can lose settings hidden through inheritance.</td></tr><tr><td class="act-cell"><code>Pull</code></td><td>A reviewed local plan can preserve trusted settings and generate the exact selected outputs.</td></tr><tr><td class="act-cell"><code>Habit</code></td><td>Manual recreation is familiar and feels controllable even when it is repetitive.</td></tr><tr><td class="act-cell"><code>Anxiety</code></td><td>Users do not want a migration tool to overwrite profiles, invent cloud evidence, or touch unrelated account files.</td></tr></tbody></table>
+  </div>
+  <div class="grounding-item">
+    <p class="label">Objections</p>
+    <table>
+      <thead><tr><th>Objection</th><th>Response the copy carries</th></tr></thead>
+      <tbody><tr><td>Will this edit my source profiles while it scans them?</td><td>Discovery and planning are read-only. Source files are resolved for review and are not modified.</td></tr><tr><td>Does local creation prove the profile is in Bambu cloud or visible in AMS?</td><td>No. Local creation, Bambu Studio loading, cloud ID assignment, and human AMS verification are recorded as separate evidence levels.</td></tr><tr><td>Can restore overwrite work changed after the migration?</td><td>A changed file is excluded from restore rather than overwritten.</td></tr></tbody>
+    </table>
+  </div>
+  <div class="grounding-item">
+    <p class="label">Proof points (every claim needs its source)</p>
+    <table>
+      <thead><tr><th>Claim</th><th>Source</th></tr></thead>
+      <tbody><tr><td>Discovery and planning are read-only.</td><td><code class="chip">README.md#safety-model</code></td></tr><tr><td>A frozen plan records source fingerprints and exact destination byte state.</td><td><code class="chip">README.md#safety-model</code></td></tr><tr><td>Restore preserves files changed externally after commit.</td><td><code class="chip">README.md#safety-model</code></td></tr><tr><td>Spool Ledger requests, stores, and transmits no Bambu credentials.</td><td><code class="chip">README.md#local-and-cloud-truth</code></td></tr><tr><td>Copied-root acceptance reproduces 16 slicing presets, 64 custom profiles, and 64 sidecars in a temporary account copy while protected live-root hashes remain unchanged.</td><td><code class="chip">README.md#supported-baseline</code></td></tr><tr><td>The approved live demonstration proves local creation, Bambu Studio loading, and unique cloud IDs for two Overture profiles; AMS verification remains pending.</td><td><code class="chip">README.md#product-tour</code></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+  <footer class="provenance">Grounding sources — README: yes &middot; routes: n/a (not a Next.js app) &middot; landing DOM captured: no &middot; changelog: no &middot; issues: skipped (no git remote &quot;origin&quot; in the product repo)</footer>
+</div>
+</body>
+</html>

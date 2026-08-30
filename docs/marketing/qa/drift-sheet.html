@@ -1,0 +1,373 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drift sheet — spool-ledger</title>
+<style>
+  :root{color-scheme:dark;--bg:#0d0f12;--card:#14171b;--line:#262b31;--ink:#e6e8eb;--dim:#8a929b;
+        --ok:#3fd08c;--warn:#e0a552;--fail:#eb4b4b;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);}
+  header h1{margin:0;font-size:16px;font-weight:650;}
+  header .sub{color:var(--dim);font-size:13px;margin-top:4px;}
+  header .verdict{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:3px;
+                  font-size:12px;font-weight:700;letter-spacing:.04em;}
+  .v-PASS{background:rgba(63,208,140,.15);color:var(--ok);}
+  .v-FAIL{background:rgba(235,75,75,.15);color:var(--fail);}
+  h2{margin:0;padding:20px 24px 0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);}
+  h2 .hint{text-transform:none;letter-spacing:0;color:#5f6672;font-weight:400;}
+  /* The attention band is capped at 3 across so its tiles stay big enough to
+     actually JUDGE from — drift is not visible in a 260px thumbnail, and this
+     page exists to be judged from, not skimmed. The overflow grid below it can
+     be dense, because it is a reference list rather than a review surface. */
+  .grid{display:grid;gap:16px;padding:16px 24px 24px;max-width:1600px;
+        grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));}
+  .grid.attention{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));max-width:1180px;}
+  details .grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));}
+  figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  figure.warn{border-color:var(--warn);}
+  figure.fail{border-color:var(--fail);box-shadow:0 0 0 1px var(--fail);}
+  figure img{display:block;width:100%;height:auto;background:#0a0c0e;}
+  figcaption{display:flex;justify-content:space-between;gap:8px;align-items:baseline;
+             padding:8px 12px;font-size:12px;border-top:1px solid #21262c;}
+  .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .nums{color:#7fb2ff;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .nums b{color:var(--dim);font-weight:600;}
+  details{margin:0 24px 32px;}
+  summary{cursor:pointer;color:var(--dim);font-size:13px;padding:8px 0;}
+  .legend{padding:0 24px 32px;color:var(--dim);font-size:13px;max-width:74ch;line-height:1.65;}
+  .legend code{color:var(--ink);}
+</style>
+<header>
+  <h1>Drift sheet &middot; spool-ledger<span class="verdict v-PASS">PASS</span></h1>
+  <div class="sub">44 asset(s) scored as a set &middot; cohesion basis: n=44, mean 0.3327, sd 0.2063</div>
+</header>
+
+<h2>Needs attention <span class="hint">— sorted worst first; a reviewer's eye is reliable over about 6 tiles, not twenty</span></h2>
+<main class="grid attention">
+      <figure class="warn">
+        <img src="../demo.mp4" alt="out/spool-ledger/demo.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/demo.mp4">demo.mp4</span>
+          <span class="nums"><b>z</b> 2.15 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="warn">
+        <img src="../stills/demo-25.png" alt="out/spool-ledger/stills/demo-25.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/demo-25.png">demo-25.png</span>
+          <span class="nums"><b>z</b> 2.15 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="warn">
+        <img src="../stills/demo-45.png" alt="out/spool-ledger/stills/demo-45.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/demo-45.png">demo-45.png</span>
+          <span class="nums"><b>z</b> 2.09 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="warn">
+        <img src="../stills/demo-05.png" alt="out/spool-ledger/stills/demo-05.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/demo-05.png">demo-05.png</span>
+          <span class="nums"><b>z</b> 2.07 &nbsp; <b>tok</b> 97%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/social-9x16.png" alt="out/spool-ledger/matrix/social-9x16.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-9x16.png">social-9x16.png</span>
+          <span class="nums"><b>z</b> 1.36 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/social-4x5.png" alt="out/spool-ledger/matrix/social-4x5.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-4x5.png">social-4x5.png</span>
+          <span class="nums"><b>z</b> 1.35 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+</main>
+
+<details>
+  <summary>38 more, in drift order</summary>
+  <div class="grid">
+      <figure class="ok">
+        <img src="../matrix/social-9x16-captioned.png" alt="out/spool-ledger/matrix/social-9x16-captioned.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-9x16-captioned.png">social-9x16-captioned.png</span>
+          <span class="nums"><b>z</b> 1.33 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/social-1x1.png" alt="out/spool-ledger/matrix/social-1x1.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-1x1.png">social-1x1.png</span>
+          <span class="nums"><b>z</b> 1.31 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/SocialClip-f75.png" alt="out/spool-ledger/marketing/stills/SocialClip-f75.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/SocialClip-f75.png">SocialClip-f75.png</span>
+          <span class="nums"><b>z</b> 1.30 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/social-16x9.png" alt="out/spool-ledger/matrix/social-16x9.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-16x9.png">social-16x9.png</span>
+          <span class="nums"><b>z</b> 1.29 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/social-1x1-captioned.png" alt="out/spool-ledger/matrix/social-1x1-captioned.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/social-1x1-captioned.png">social-1x1-captioned.png</span>
+          <span class="nums"><b>z</b> 1.26 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-demo.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-demo.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-demo.png">LaunchVideo-demo.png</span>
+          <span class="nums"><b>z</b> -0.03 &nbsp; <b>tok</b> 99%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/SocialClip-f0.png" alt="out/spool-ledger/marketing/stills/SocialClip-f0.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/SocialClip-f0.png">SocialClip-f0.png</span>
+          <span class="nums"><b>z</b> -0.18 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/SocialClip-f299.png" alt="out/spool-ledger/marketing/stills/SocialClip-f299.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/SocialClip-f299.png">SocialClip-f299.png</span>
+          <span class="nums"><b>z</b> -0.24 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-logo.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-logo.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-logo.png">LaunchVideo-logo.png</span>
+          <span class="nums"><b>z</b> -0.25 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../stills/logo-30.png" alt="out/spool-ledger/stills/logo-30.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/logo-30.png">logo-30.png</span>
+          <span class="nums"><b>z</b> -0.25 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-end.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-end.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-end.png">LaunchVideo-end.png</span>
+          <span class="nums"><b>z</b> -0.25 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-hook.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-hook.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-hook.png">LaunchVideo-hook.png</span>
+          <span class="nums"><b>z</b> -0.26 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-9x16.png" alt="out/spool-ledger/matrix/launch-9x16.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-9x16.png">launch-9x16.png</span>
+          <span class="nums"><b>z</b> -0.29 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../logo-reveal.mp4" alt="out/spool-ledger/logo-reveal.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/logo-reveal.mp4">logo-reveal.mp4</span>
+          <span class="nums"><b>z</b> -0.29 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../stills/logo-80.png" alt="out/spool-ledger/stills/logo-80.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/logo-80.png">logo-80.png</span>
+          <span class="nums"><b>z</b> -0.29 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../stills/logo-130.png" alt="out/spool-ledger/stills/logo-130.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/stills/logo-130.png">logo-130.png</span>
+          <span class="nums"><b>z</b> -0.30 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-9x16-captioned.png" alt="out/spool-ledger/matrix/launch-9x16-captioned.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-9x16-captioned.png">launch-9x16-captioned.png</span>
+          <span class="nums"><b>z</b> -0.30 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/AnimatedOG-f239.png" alt="out/spool-ledger/marketing/stills/AnimatedOG-f239.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/AnimatedOG-f239.png">AnimatedOG-f239.png</span>
+          <span class="nums"><b>z</b> -0.31 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/AnimatedOG-f0.png" alt="out/spool-ledger/marketing/stills/AnimatedOG-f0.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/AnimatedOG-f0.png">AnimatedOG-f0.png</span>
+          <span class="nums"><b>z</b> -0.31 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/AnimatedOG-f179.png" alt="out/spool-ledger/marketing/stills/AnimatedOG-f179.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/AnimatedOG-f179.png">AnimatedOG-f179.png</span>
+          <span class="nums"><b>z</b> -0.31 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../og.mp4" alt="out/spool-ledger/og.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/og.mp4">og.mp4</span>
+          <span class="nums"><b>z</b> -0.32 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/AnimatedOG-f120.png" alt="out/spool-ledger/marketing/stills/AnimatedOG-f120.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/AnimatedOG-f120.png">AnimatedOG-f120.png</span>
+          <span class="nums"><b>z</b> -0.32 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/AnimatedOG-f60.png" alt="out/spool-ledger/marketing/stills/AnimatedOG-f60.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/AnimatedOG-f60.png">AnimatedOG-f60.png</span>
+          <span class="nums"><b>z</b> -0.32 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../og-image.png" alt="out/spool-ledger/og-image.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/og-image.png">og-image.png</span>
+          <span class="nums"><b>z</b> -0.32 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-4x5.png" alt="out/spool-ledger/matrix/launch-4x5.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-4x5.png">launch-4x5.png</span>
+          <span class="nums"><b>z</b> -0.33 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-1x1.png" alt="out/spool-ledger/matrix/launch-1x1.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-1x1.png">launch-1x1.png</span>
+          <span class="nums"><b>z</b> -0.37 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-1x1-captioned.png" alt="out/spool-ledger/matrix/launch-1x1-captioned.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-1x1-captioned.png">launch-1x1-captioned.png</span>
+          <span class="nums"><b>z</b> -0.40 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../matrix/launch-16x9.png" alt="out/spool-ledger/matrix/launch-16x9.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/matrix/launch-16x9.png">launch-16x9.png</span>
+          <span class="nums"><b>z</b> -0.48 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-feature-3.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-feature-3.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-feature-3.png">LaunchVideo-feature-3.png</span>
+          <span class="nums"><b>z</b> -1.07 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-feature-1.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-feature-1.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-feature-1.png">LaunchVideo-feature-1.png</span>
+          <span class="nums"><b>z</b> -1.07 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../launch-audio.mp4" alt="out/spool-ledger/launch-audio.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/launch-audio.mp4">launch-audio.mp4</span>
+          <span class="nums"><b>z</b> -1.07 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../launch-v1.mp4" alt="out/spool-ledger/launch-v1.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/launch-v1.mp4">launch-v1.mp4</span>
+          <span class="nums"><b>z</b> -1.07 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../launch.mp4" alt="out/spool-ledger/launch.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/launch.mp4">launch.mp4</span>
+          <span class="nums"><b>z</b> -1.07 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../social-x.mp4" alt="out/spool-ledger/social-x.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/social-x.mp4">social-x.mp4</span>
+          <span class="nums"><b>z</b> -1.08 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/LaunchVideo-feature-2.png" alt="out/spool-ledger/marketing/stills/LaunchVideo-feature-2.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/LaunchVideo-feature-2.png">LaunchVideo-feature-2.png</span>
+          <span class="nums"><b>z</b> -1.12 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/SocialClip-f224.png" alt="out/spool-ledger/marketing/stills/SocialClip-f224.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/SocialClip-f224.png">SocialClip-f224.png</span>
+          <span class="nums"><b>z</b> -1.12 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="../social-linkedin.mp4" alt="out/spool-ledger/social-linkedin.mp4" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/social-linkedin.mp4">social-linkedin.mp4</span>
+          <span class="nums"><b>z</b> -1.12 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+      <figure class="ok">
+        <img src="stills/SocialClip-f150.png" alt="out/spool-ledger/marketing/stills/SocialClip-f150.png" loading="lazy">
+        <figcaption>
+          <span class="name" title="out/spool-ledger/marketing/stills/SocialClip-f150.png">SocialClip-f150.png</span>
+          <span class="nums"><b>z</b> -1.12 &nbsp; <b>tok</b> 100%</span>
+        </figcaption>
+      </figure>
+  </div>
+</details>
+
+<p class="legend">
+  <code>z</code> is distance from the set centroid in standard deviations — a RELATIVE
+  measure with no absolute threshold, because no published number maps an image
+  distance to "a human would call this a different brand". <code>tok</code> is the share of
+  colourful pixels sitting on a brand token: an ABSOLUTE measure. Either one alone is a
+  WARN. Both on the same asset is a FAIL, because a captured product screenshot
+  legitimately carries the product's own colours and low <code>tok</code> by itself proves nothing.
+  Calibrate by pointing <code>--ref &lt;dir&gt;</code> at assets you have already approved.
+</p>

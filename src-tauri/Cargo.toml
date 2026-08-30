@@ -1,0 +1,45 @@
+[package]
+name = "bambu-filament-migrator"
+version = "0.1.0"
+description = "Migrate OrcaSlicer and Bambu Studio filament presets into Bambu custom filaments"
+authors = ["Remindz"]
+edition = "2024"
+license = "AGPL-3.0-only"
+rust-version = "1.88"
+
+[lib]
+name = "bambu_filament_migrator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bambu-filament-migrator"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+walkdir = "2"
+regex = "1"
+sha2 = "0.10"
+md5 = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+zip = { version = "4", default-features = false, features = ["deflate"] }
+directories = "6"
+sysinfo = "0.37"
+uuid = { version = "1", features = ["v4", "serde"] }
+tauri-plugin-opener = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+tempfile = "3"

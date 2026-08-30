@@ -1,0 +1,13 @@
+{
+  "type": "filament",
+  "name": "Generic PLA @base",
+  "inherits": "fdm_filament_pla",
+  "from": "system",
+  "filament_id": "GFL99",
+  "instantiation": "false",
+  "filament_vendor": ["Generic"],
+  "filament_flow_ratio": ["0.98"],
+  "filament_max_volumetric_speed": ["12"],
+  "nozzle_temperature": ["220"],
+  "nozzle_temperature_initial_layer": ["220"]
+}

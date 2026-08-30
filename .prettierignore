@@ -1,0 +1,9 @@
+docs/
+design-v2/
+DESIGN.md
+fixtures/
+src-tauri/
+SCOPE.md
+node_modules/
+dist/
+target/

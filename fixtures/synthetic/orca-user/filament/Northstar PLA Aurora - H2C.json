@@ -1,0 +1,9 @@
+{
+  "compatible_printers": [],
+  "filament_extruder_variant": ["Direct Drive Standard", "Direct Drive High Flow"],
+  "filament_settings_id": ["Northstar PLA Aurora - H2C"],
+  "from": "User",
+  "inherits": "Northstar PLA Aurora @BBL X1C",
+  "name": "Northstar PLA Aurora - H2C",
+  "version": "2.0.0.56"
+}
