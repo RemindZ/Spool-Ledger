@@ -27,10 +27,10 @@ A custom runner label is routing, not a security boundary. Workflow ownership an
 
 ## Release behavior
 
-The MacBook receives only the `build-macos` job from `.github/workflows/release.yml`. The job:
+The MacBook receives only the protected-tag `build-macos` release job and the manually dispatched acceptance job from protected `main`. The acceptance exception exists so a universal build can be proven before its fail-closed release-matrix row is enabled. Neither path accepts pull-request or ordinary-push code. These jobs:
 
 - checks the host architecture and Xcode tools;
-- checks out the protected release tag;
+- checks out the immutable commit from a protected release tag or protected `main`;
 - installs locked Node and Rust dependencies;
 - runs frontend and Rust verification;
 - builds one universal application and DMG;

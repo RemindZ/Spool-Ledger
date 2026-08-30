@@ -2,6 +2,17 @@
 
 A release is a two-stage operation: automation builds and verifies a draft, then the owner reviews and publishes it. The workflow never publishes automatically.
 
+## Bootstrap the first macOS acceptance
+
+The release matrix intentionally blocks release jobs until real platform evidence exists. For the first release only:
+
+1. Merge the verified implementation with both matrix rows still disabled under explicit approval.
+2. From protected `main`, manually run `.github/workflows/macos-acceptance.yml`.
+3. Download its universal DMG and checksum evidence, then complete installed-app and slicer acceptance on the MacBook.
+4. Record the evidence and enable the platform rows in a follow-up reviewed commit.
+
+The acceptance workflow never runs on a pull request or push, cannot mutate a release, and does not read or write live slicer profiles. It only verifies source, builds the universal application, checks its metadata and architectures, and uploads short-lived evidence.
+
 ## 1. Clear compatibility gates
 
 - Complete Windows built-app dogfood, restart/resynchronization, and operator AMS acceptance.

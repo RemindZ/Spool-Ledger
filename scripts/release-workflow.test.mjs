@@ -111,6 +111,26 @@ describe("release workflow policy", () => {
     );
   });
 
+  it("runs macOS acceptance only from protected main without release mutation", () => {
+    const workflow = read(".github/workflows/macos-acceptance.yml");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("pull_request:");
+    expect(workflow).not.toContain("push:");
+    expect(workflow).toContain('test "$GITHUB_REF" = "refs/heads/main"');
+    expect(workflow).toContain('test "$GITHUB_REF_PROTECTED" = "true"');
+    expect(workflow).toContain(
+      "runs-on: [self-hosted, macOS, ARM64, spool-ledger-release]",
+    );
+    expect(workflow).toContain("ref: ${{ github.sha }}");
+    expect(workflow).toContain("--target universal-apple-darwin");
+    expect(workflow).toContain("lipo -archs");
+    expect(workflow).toContain("LSMinimumSystemVersion");
+    expect(workflow).toContain("CFBundleIconFile");
+    expect(workflow).toContain("macos-SHA256SUMS.txt");
+    expect(workflow).toContain('rm -rf "$GITHUB_WORKSPACE/source"');
+    expect(workflow).not.toMatch(/gh release|actions\/attest|contents: write/);
+  });
+
   it("declares the universal macOS bundle contract", () => {
     const config = JSON.parse(read("src-tauri/tauri.conf.json"));
     expect(config.bundle.icon).toContain("icons/icon.icns");

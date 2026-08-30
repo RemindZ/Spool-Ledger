@@ -66,6 +66,24 @@ if (/linux|appimage/i.test(releaseWorkflow)) {
   throw new Error("Linux must remain outside the initial release workflow");
 }
 
+const macosAcceptance = requireText(".github/workflows/macos-acceptance.yml", [
+  "workflow_dispatch:",
+  'test "$GITHUB_REF" = "refs/heads/main"',
+  'test "$GITHUB_REF_PROTECTED" = "true"',
+  "runs-on: [self-hosted, macOS, ARM64, spool-ledger-release]",
+  "--target universal-apple-darwin",
+  "macos-SHA256SUMS.txt",
+]);
+if (
+  /pull_request:|push:|gh release|actions\/attest|contents: write/.test(
+    macosAcceptance,
+  )
+) {
+  throw new Error(
+    "macOS acceptance must remain protected-main, read-only characterization",
+  );
+}
+
 validateReleaseMatrix(
   JSON.parse(read("docs/compatibility/release-matrix.json")),
   (path) => existsSync(resolve(root, path)),
