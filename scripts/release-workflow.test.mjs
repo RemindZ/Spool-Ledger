@@ -127,8 +127,20 @@ describe("release workflow policy", () => {
     expect(workflow).toContain("LSMinimumSystemVersion");
     expect(workflow).toContain("CFBundleIconFile");
     expect(workflow).toContain("macos-SHA256SUMS.txt");
+    expect(workflow).toContain(
+      "installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes",
+    );
+    expect(workflow).toContain(
+      "copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes",
+    );
+    expect(workflow).toContain(
+      "if: github.ref == 'refs/heads/main' && github.ref_protected",
+    );
     expect(workflow).toContain('rm -rf "$GITHUB_WORKSPACE/source"');
     expect(workflow).not.toMatch(/gh release|actions\/attest|contents: write/);
+    expect(workflow).toContain("path: source/acceptance/*");
+    expect(workflow).not.toContain("path: source/src-tauri");
+    expect(workflow).not.toContain("path: source/.local-characterization");
   });
 
   it("declares the universal macOS bundle contract", () => {

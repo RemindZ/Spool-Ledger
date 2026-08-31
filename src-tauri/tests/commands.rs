@@ -1105,7 +1105,9 @@ fn installed_bambu_profiles_discover_and_catalog_h2c() {
 #[test]
 #[ignore = "reads installed profiles and proves every live profile file remains byte-identical"]
 fn installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes() {
-    let (config, _) = ServiceConfig::current().unwrap();
+    let (mut config, _) = ServiceConfig::current().unwrap();
+    let app_data = tempfile::tempdir().unwrap();
+    config.data_root = app_data.path().to_path_buf();
     let source_root_ids: Vec<_> = config
         .sources
         .iter()
