@@ -5,11 +5,10 @@
       "id": "windows-x64",
       "platform": "windows",
       "architecture": "x64",
-      "release_enabled": false,
+      "release_enabled": true,
       "unsigned": true,
       "evidence_document": "docs/compatibility/windows-x64-baseline.md",
-      "artifact_kinds": ["nsis", "msi", "portable"],
-      "pending": "Built-app owner dogfood, restart/resynchronization, and operator AMS acceptance"
+      "artifact_kinds": ["nsis", "msi", "portable"]
     },
     {
       "id": "macos-universal",
