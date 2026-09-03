@@ -2607,6 +2607,27 @@ body {
   backdrop-filter: blur(12px);
 }
 
+@media (min-width: 1121px) and (min-height: 700px) {
+  .workspace-shell:has(.setup-intro) {
+    height: calc(100dvh - 142px);
+    overflow: hidden;
+  }
+
+  .workspace-view:has(> .setup-intro) {
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .workspace-view:has(> .setup-intro) .routing-bench {
+    min-height: 0;
+  }
+
+  .workspace-view:has(> .setup-intro) .naming-rail,
+  .workspace-view:has(> .setup-intro) .destination-rail {
+    overflow-y: auto;
+  }
+}
+
 .setup-counts {
   display: flex;
   flex-wrap: wrap;
@@ -3017,6 +3038,14 @@ body {
 
 .modal-dialog-surface {
   display: grid;
+}
+
+.modal-dialog-surface > * {
+  min-width: 0;
+}
+
+.modal-dialog-surface h2 {
+  overflow-wrap: anywhere;
 }
 
 .modal-dialog-surface > header,
