@@ -346,13 +346,27 @@ fn copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes() {
         .iter()
         .filter(|root| root.source_app == SourceApp::OrcaSlicer)
         .collect();
-    assert!(!orca_sources.is_empty());
-    let target = installed.targets.first().unwrap();
-    let installed_account = installed
+    let eligible_account = installed
         .accounts
         .iter()
-        .find(|account| account.account.eligibility.writable_by_default())
-        .unwrap();
+        .find(|account| account.account.eligibility.writable_by_default());
+    let mut missing = Vec::new();
+    if orca_sources.is_empty() {
+        missing.push("OrcaSlicer profile roots");
+    }
+    if installed.targets.is_empty() {
+        missing.push("Bambu Studio target profiles");
+    }
+    if eligible_account.is_none() {
+        missing.push("eligible Bambu Studio account profiles");
+    }
+    assert!(
+        missing.is_empty(),
+        "missing installed acceptance prerequisites: {}",
+        missing.join(", ")
+    );
+    let target = &installed.targets[0];
+    let installed_account = eligible_account.unwrap();
 
     let mut live_roots: Vec<_> = installed
         .sources

@@ -85,8 +85,14 @@ jobs:
         working-directory: source
         shell: bash
         run: |
+          set +e
           cargo test --manifest-path src-tauri/Cargo.toml --test commands installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes -- --ignored --exact --nocapture
+          installed_status=$?
           cargo test --manifest-path src-tauri/Cargo.toml --test copied_roots copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes -- --ignored --exact --nocapture
+          copied_status=$?
+          set -e
+          test "$installed_status" -eq 0
+          test "$copied_status" -eq 0
 
       - name: Audit Rust dependencies and licenses
         working-directory: source

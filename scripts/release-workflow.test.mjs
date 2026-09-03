@@ -133,6 +133,9 @@ describe("release workflow policy", () => {
     expect(workflow).toContain(
       "copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes",
     );
+    expect(workflow).toContain("set +e");
+    expect(workflow).toContain("installed_status=$?");
+    expect(workflow).toContain("copied_status=$?");
     expect(workflow).toContain(
       "if: github.ref == 'refs/heads/main' && github.ref_protected",
     );

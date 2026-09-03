@@ -1114,15 +1114,27 @@ fn installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes() {
         .filter(|root| root.source_app == SourceApp::OrcaSlicer)
         .map(|root| root.id.clone())
         .collect();
-    let target_id = config.targets.first().unwrap().id.clone();
-    let account_id = config
+    let eligible_account = config
         .accounts
         .iter()
-        .find(|account| account.account.eligibility.writable_by_default())
-        .unwrap()
-        .account
-        .id
-        .clone();
+        .find(|account| account.account.eligibility.writable_by_default());
+    let mut missing = Vec::new();
+    if source_root_ids.is_empty() {
+        missing.push("OrcaSlicer profile roots");
+    }
+    if config.targets.is_empty() {
+        missing.push("Bambu Studio target profiles");
+    }
+    if eligible_account.is_none() {
+        missing.push("eligible Bambu Studio account profiles");
+    }
+    assert!(
+        missing.is_empty(),
+        "missing installed acceptance prerequisites: {}",
+        missing.join(", ")
+    );
+    let target_id = config.targets[0].id.clone();
+    let account_id = eligible_account.unwrap().account.id.clone();
     let mut protected_roots: Vec<_> = config
         .sources
         .iter()
