@@ -71,6 +71,9 @@ const macosAcceptance = requireText(".github/workflows/macos-acceptance.yml", [
   'test "$GITHUB_REF" = "refs/heads/main"',
   'test "$GITHUB_REF_PROTECTED" = "true"',
   "runs-on: [self-hosted, macOS, ARM64, spool-ledger-release]",
+  "if: github.ref == 'refs/heads/main' && github.ref_protected",
+  "installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes",
+  "copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes",
   "--target universal-apple-darwin",
   "macos-SHA256SUMS.txt",
 ]);

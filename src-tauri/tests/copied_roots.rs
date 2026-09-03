@@ -1,13 +1,14 @@
 use bambu_filament_migrator::commands::{
     ApprovedAccount, ApprovedSourceRoot, ApprovedTargetCatalog, BuildPlanRequest,
     CatalogSourcesRequest, CatalogTargetsRequest, ExecutePlanRequest, MigrationService,
-    NozzleSelection, OutputSelection, ServiceConfig,
+    NozzleSelection, OutputSelection, ResolvePlanDependenciesRequest, ServiceConfig,
+    TargetTemplateDecision, TargetTemplateDecisionAction,
 };
 use bambu_filament_migrator::discovery::inspect_account;
 use bambu_filament_migrator::model::{SourceApp, SourceKind};
 use bambu_filament_migrator::planner::{NamingOptions, PlanAction};
 use bambu_filament_migrator::profiles::InfoSidecar;
-use bambu_filament_migrator::receipt::RunReceipt;
+use bambu_filament_migrator::receipt::{ReceiptState, RunReceipt};
 use bambu_filament_migrator::sync::{Clock, ProcessBackend};
 use bambu_filament_migrator::transaction::Transaction;
 use serde::Deserialize;
@@ -333,4 +334,208 @@ fn copied_windows_roots_reproduce_all_panchroma_h2c_artifacts_without_live_write
         .collect();
     assert_eq!(live_after, live_before);
     assert_eq!(hash_file(&live_bambu_manifest), bambu_manifest_hash);
+}
+
+#[test]
+#[ignore = "copies installed macOS profile resources to a temp root and never writes live roots"]
+fn copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes() {
+    assert_eq!(std::env::consts::OS, "macos");
+    let (installed, _) = ServiceConfig::current().unwrap();
+    let orca_sources: Vec<_> = installed
+        .sources
+        .iter()
+        .filter(|root| root.source_app == SourceApp::OrcaSlicer)
+        .collect();
+    assert!(!orca_sources.is_empty());
+    let target = installed.targets.first().unwrap();
+    let installed_account = installed
+        .accounts
+        .iter()
+        .find(|account| account.account.eligibility.writable_by_default())
+        .unwrap();
+
+    let mut live_roots: Vec<_> = installed
+        .sources
+        .iter()
+        .map(|root| root.path.clone())
+        .collect();
+    live_roots.extend(
+        installed
+            .targets
+            .iter()
+            .flat_map(|target| [target.profile_root.clone(), target.manifest_path.clone()]),
+    );
+    live_roots.extend(
+        installed
+            .accounts
+            .iter()
+            .map(|account| account.account.path.join("filament")),
+    );
+    let live_before: Vec<_> = live_roots
+        .iter()
+        .map(|root| (root.clone(), hash_tree(root)))
+        .collect();
+
+    let temp = tempfile::tempdir().unwrap();
+    let copied_sources: Vec<_> = orca_sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            let path = temp.path().join("sources").join(index.to_string());
+            copy_tree(&source.path, &path);
+            ApprovedSourceRoot {
+                id: format!("source:orca:copied:{index}"),
+                path,
+                source_app: SourceApp::OrcaSlicer,
+                source_kind: source.source_kind,
+            }
+        })
+        .collect();
+
+    let target_root = temp.path().join("target");
+    std::fs::create_dir_all(&target_root).unwrap();
+    let bundle_root = target.profile_root.parent().unwrap();
+    let (copied_manifest, copied_profile_root) =
+        if target.manifest_path.parent() == Some(bundle_root) {
+            copy_tree(bundle_root, &target_root);
+            (
+                target_root.join(target.manifest_path.file_name().unwrap()),
+                target_root.join("filament"),
+            )
+        } else {
+            copy_tree(bundle_root, &target_root.join("BBL"));
+            let manifest = target_root.join("BBL.json");
+            std::fs::copy(&target.manifest_path, &manifest).unwrap();
+            (manifest, target_root.join("BBL/filament"))
+        };
+
+    let destination = temp.path().join("account").join(SYNTHETIC_ACCOUNT_ID);
+    copy_tree(
+        &installed_account.account.path.join("filament"),
+        &destination.join("filament"),
+    );
+    let destination_before = hash_tree(&destination);
+    let destination_filament_file_count_before = hash_tree(&destination.join("filament")).len();
+    let account = inspect_account(&destination).unwrap();
+    assert!(account.writable_by_default());
+    let executable = temp.path().join("BambuStudio");
+    std::fs::write(&executable, b"characterization stub").unwrap();
+
+    let mut service = MigrationService::new(ServiceConfig {
+        sources: copied_sources,
+        targets: vec![ApprovedTargetCatalog {
+            id: "target:bambu:copied-macos".to_owned(),
+            manifest_path: copied_manifest,
+            profile_root: copied_profile_root,
+            custom_machine_root: None,
+        }],
+        accounts: vec![ApprovedAccount {
+            account,
+            bambu_executable: Some(executable),
+        }],
+        data_root: temp.path().join("app-data"),
+        process_close_timeout_ms: 200,
+    })
+    .unwrap();
+
+    let source_catalog = service
+        .catalog_sources(CatalogSourcesRequest {
+            root_ids: service.discover().source_root_ids,
+        })
+        .unwrap();
+    let source = source_catalog
+        .sources
+        .iter()
+        .find(|source| source.vendor == "Elegoo" && source.material == "PET-CF")
+        .unwrap();
+    let target_catalog = service
+        .catalog_targets(CatalogTargetsRequest {
+            catalog_id: "target:bambu:copied-macos".to_owned(),
+            show_custom: false,
+        })
+        .unwrap();
+    let h2c = target_catalog
+        .printers
+        .iter()
+        .find(|printer| printer.code == "H2C")
+        .unwrap();
+    let request = BuildPlanRequest {
+        source_catalog_id: source_catalog.catalog_id,
+        source_ids: vec![source.id.0.clone()],
+        target_catalog_id: target_catalog.catalog_id,
+        nozzles: vec![NozzleSelection {
+            printer_id: h2c.id.clone(),
+            diameters: vec!["0.4".to_owned()],
+        }],
+        destination_account_id: SYNTHETIC_ACCOUNT_ID.to_owned(),
+        preset_template: "Spool Ledger macOS acceptance {source_name} - {printer_code}".to_owned(),
+        ams_template: "Spool Ledger macOS acceptance {vendor} {material} {clean_name}".to_owned(),
+        outputs: OutputSelection::default(),
+        naming: NamingOptions::default(),
+    };
+    let unresolved = service.build_plan(request.clone()).unwrap();
+    let value = serde_json::to_value(unresolved).unwrap();
+    assert_eq!(value["status"], "needs_resolution");
+    let issue = &value["issues"][0];
+    let candidate = issue["installed_candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find_map(|candidate| {
+            candidate["profile_name"]
+                .as_str()
+                .filter(|name| name.contains("Bambu PET-CF"))
+        })
+        .unwrap()
+        .to_owned();
+    let plan = service
+        .resolve_plan_dependencies(ResolvePlanDependenciesRequest {
+            request,
+            decisions: vec![TargetTemplateDecision {
+                issue_id: issue["id"].as_str().unwrap().to_owned(),
+                action: TargetTemplateDecisionAction::UseInstalled,
+                profile_name: Some(candidate),
+                source_id: None,
+            }],
+        })
+        .unwrap()
+        .into_plan()
+        .unwrap();
+    assert!(!plan.operations.is_empty());
+
+    let mut process = StoppedProcess;
+    let mut clock = FakeClock::default();
+    let local = service
+        .execute_plan_with(
+            ExecutePlanRequest { plan_id: plan.id },
+            &mut process,
+            &mut clock,
+        )
+        .unwrap();
+    let committed = RunReceipt::load(&local.receipt_path).unwrap();
+    assert_eq!(committed.state, ReceiptState::Committed);
+    assert_eq!(committed.counts.committed, local.committed_files);
+    assert_eq!(committed.backup.sha256, local.backup_sha256);
+    assert_eq!(hash_file(&committed.backup.path), local.backup_sha256);
+    assert_eq!(
+        local.backup_file_count,
+        destination_filament_file_count_before
+    );
+
+    let preview = service.restore_preview(&local.run_id).unwrap();
+    assert!(!preview.paths.is_empty());
+    assert!(preview.paths.iter().all(|path| path.safe_to_restore));
+    let rollback = service.restore_owned(&local.run_id).unwrap();
+    assert_eq!(rollback.external_conflicts, 0);
+    assert_eq!(rollback.failed, 0);
+    assert!(rollback.rolled_back > 0);
+    let restored = RunReceipt::load(&local.receipt_path).unwrap();
+    assert_eq!(restored.state, ReceiptState::RolledBack);
+    assert_eq!(hash_tree(&destination), destination_before);
+
+    let live_after: Vec<_> = live_roots
+        .iter()
+        .map(|root| (root.clone(), hash_tree(root)))
+        .collect();
+    assert_eq!(live_after, live_before);
 }

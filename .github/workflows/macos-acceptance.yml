@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   verify-macos-universal:
+    if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: [self-hosted, macOS, ARM64, spool-ledger-release]
     timeout-minutes: 120
     steps:
@@ -79,6 +80,13 @@ jobs:
           cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
           cargo test --manifest-path src-tauri/Cargo.toml --all-targets
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+
+      - name: Characterize installed profiles without live writes
+        working-directory: source
+        shell: bash
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --test commands installed_elegoo_pet_cf_resolves_bambu_pet_cf_target_without_live_writes -- --ignored --exact --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml --test copied_roots copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes -- --ignored --exact --nocapture
 
       - name: Audit Rust dependencies and licenses
         working-directory: source
