@@ -69,6 +69,16 @@ Observed evidence:
 - Every committed path remained under the temporary destination.
 - The live Orca root, Bambu system root, Bambu account root, and adjacent Bambu manifest had identical SHA-256 maps before and after the run.
 
+## Owner acceptance recorded 2026-09-04
+
+The owner confirmed the remaining built-application gates after reviewing the real Windows workflow:
+
+- Generated profiles persisted after a normal Bambu Studio restart and resynchronization.
+- The intended custom filament entries were visible in the target printer or AMS interface.
+- Local creation, Bambu acknowledgement, cloud-ID assignment, and operator AMS visibility remain recorded as separate evidence levels.
+
+Together with the frozen environment, copied-root safety proof, signed-off live workflow, package builds, and GUI/WebView2 smoke evidence, this completes the Windows x64 compatibility gate for the unsigned initial release.
+
 ## Important limits
 
 - A `PFUS...` ID proves cloud-ID assignment, not AMS visibility.
