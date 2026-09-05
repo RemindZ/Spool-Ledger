@@ -14,9 +14,19 @@ This row remains disabled in `release-matrix.json` until every acceptance item b
 - [x] Rust and frontend verification pass natively on the registered Apple Silicon runner.
 - [x] The packaged executable reports both `arm64` and `x86_64` through `lipo -archs`.
 - [x] The DMG contains the expected bundle identifier, version, icon, and minimum system version.
-- [ ] Read-only discovery finds the installed Bambu Studio and OrcaSlicer roots.
-- [ ] Read-only cataloging resolves installed profile resources without copying proprietary profiles into the repository.
-- [ ] Copied-root planning, writing, backup, restore, and receipts pass while configured live-root hashes remain unchanged.
+- [x] Read-only discovery finds the installed Bambu Studio and OrcaSlicer roots.
+- [x] Read-only cataloging resolves installed profile resources without copying proprietary profiles into the repository.
+- [x] Copied-root planning, writing, backup, restore, and receipts pass while configured live-root hashes remain unchanged.
+
+Installed-profile and copied-root acceptance recorded 2026-09-05:
+
+- Protected-main commit: `b8c1f70d8f1a90e5c9d0aaedc89a44d071f6b606`
+- GitHub Actions run: <https://github.com/RemindZ/bambu-filament-migrator/actions/runs/33960999211>
+- Both explicitly selected installed/copy characterization tests passed, followed by dependency audit, universal packaging, and checkout cleanup.
+- Downloaded artifact: `Spool-Ledger-v0.1.0-macos-universal.dmg`, 11,975,573 bytes.
+- Independently verified SHA-256: `caec47e6e85a2b8fb3cd644342f9b3d626474f3b1fe3aff49107eef363dc27e3`.
+- These tests use an inert process backend for copied-root execution. They do not establish real application launch, Gatekeeper acceptance, cloud synchronization, or operator AMS visibility.
+
 
 Acceptance build evidence recorded 2026-08-30:
 
