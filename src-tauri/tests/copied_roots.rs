@@ -66,6 +66,34 @@ fn copy_tree(source: &Path, destination: &Path) {
     }
 }
 
+fn copied_source_path(root: &Path, index: usize, source: &Path) -> PathBuf {
+    let parent = source
+        .parent()
+        .and_then(Path::file_name)
+        .expect("installed source root must have a named parent");
+    let leaf = source
+        .file_name()
+        .expect("installed source root must have a final component");
+    root.join("sources")
+        .join(index.to_string())
+        .join(parent)
+        .join(leaf)
+}
+
+#[test]
+fn copied_source_paths_preserve_catalog_precedence_markers() {
+    let root = Path::new("acceptance");
+
+    assert_eq!(
+        copied_source_path(root, 0, Path::new("profiles/OrcaFilamentLibrary/filament")),
+        root.join("sources/0/OrcaFilamentLibrary/filament")
+    );
+    assert_eq!(
+        copied_source_path(root, 1, Path::new("user/default/filament")),
+        root.join("sources/1/default/filament")
+    );
+}
+
 fn remove_panchroma_outputs(account: &Path) {
     let filament = account.join("filament");
     let mut paths = Vec::new();
@@ -395,7 +423,7 @@ fn copied_macos_roots_execute_backup_restore_and_receipt_without_live_writes() {
         .iter()
         .enumerate()
         .map(|(index, source)| {
-            let path = temp.path().join("sources").join(index.to_string());
+            let path = copied_source_path(temp.path(), index, &source.path);
             copy_tree(&source.path, &path);
             ApprovedSourceRoot {
                 id: format!("source:orca:copied:{index}"),
