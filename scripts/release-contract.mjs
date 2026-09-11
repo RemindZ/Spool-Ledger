@@ -43,7 +43,7 @@ export function artifactNames(version) {
 export function validateReleaseMatrix(
   matrix,
   evidenceExists,
-  { requireEnabled = true } = {},
+  { requireEnabled = true, tag, prerelease = false } = {},
 ) {
   if (matrix?.version !== 1 || !Array.isArray(matrix.platforms)) {
     throw new Error("release matrix must use schema version 1");
@@ -87,7 +87,20 @@ export function validateReleaseMatrix(
     if (row.release_enabled && hasPending) {
       throw new Error(`${id} cannot be release enabled while work is pending`);
     }
-    if (requireEnabled && !row.release_enabled) {
+    const hasAlphaPreview = Object.hasOwn(row, "alpha_preview_tag");
+    if (
+      hasAlphaPreview &&
+      (id !== "macos-universal" ||
+        row.alpha_preview_tag !== "v0.9.0" ||
+        row.release_enabled ||
+        !hasPending ||
+        !row.pending.trim())
+    ) {
+      throw new Error(`${id} has an invalid alpha preview exception`);
+    }
+    const alphaPreview =
+      hasAlphaPreview && tag === row.alpha_preview_tag && prerelease === true;
+    if (requireEnabled && !row.release_enabled && !alphaPreview) {
       throw new Error(`${id} is not release enabled`);
     }
     if (!row.unsigned) {
@@ -116,6 +129,7 @@ export function validateReleaseContract({
   versions,
   matrix,
   evidenceExists,
+  prerelease = false,
 }) {
   const version = parseReleaseTag(tag);
   const authorities = [
@@ -131,7 +145,7 @@ export function validateReleaseContract({
     }
   }
 
-  validateReleaseMatrix(matrix, evidenceExists);
+  validateReleaseMatrix(matrix, evidenceExists, { tag, prerelease });
 
   return { version, artifacts: artifactNames(version), unsigned: true };
 }
@@ -148,7 +162,7 @@ function cargoPackageVersion(content) {
   return version;
 }
 
-export function loadReleaseContract(root, tag) {
+export function loadReleaseContract(root, tag, { prerelease = false } = {}) {
   const read = (path) => readFileSync(resolve(root, path), "utf8");
   const packageJson = JSON.parse(read("package.json"));
   const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
@@ -161,6 +175,7 @@ export function loadReleaseContract(root, tag) {
       tauriConfig: tauriConfig.version,
     },
     matrix,
+    prerelease,
     evidenceExists: (path) => existsSync(resolve(root, path)),
   });
 }
@@ -174,7 +189,9 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
   }
   try {
     const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
-    const result = loadReleaseContract(root, process.argv[tagIndex + 1]);
+    const result = loadReleaseContract(root, process.argv[tagIndex + 1], {
+      prerelease: process.argv.includes("--prerelease"),
+    });
     console.log(JSON.stringify(result));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

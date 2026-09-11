@@ -1,13 +1,15 @@
 # macOS universal compatibility baseline
 
-- **Release status:** blocked
+- **Release status:** v0.9.0 alpha preview only, not fully accepted
 - **Architecture:** universal (`arm64` and `x86_64`)
 - **Minimum target:** macOS 12.0, pending real-installation confirmation
 - **Signing:** unsigned initial-release artifact
 - **Bambu Studio:** pending characterization
 - **OrcaSlicer:** pending characterization
 
-This row remains disabled in `release-matrix.json` until every acceptance item below has recorded evidence. A successful GitHub Actions build is not acceptance.
+This row remains disabled for fully accepted releases in `release-matrix.json` until every acceptance item below has recorded evidence. A successful GitHub Actions build is not acceptance.
+
+The owner explicitly authorized distribution as a macOS alpha preview for the v0.9.0 prerelease despite unavailable detailed human acceptance records. `alpha_preview_tag` permits only that exact prerelease, not a stable release or a later version. macOS alpha preview: additional testing is needed, and we welcome your feedback. The universal executable contains both architectures; this does not establish installed acceptance on Intel Macs or on the minimum macOS version.
 
 ## Automated evidence
 
@@ -40,6 +42,8 @@ Acceptance build evidence recorded 2026-08-30:
 The protected workflow also required the bundle identifier `io.github.remindz.bambu-filament-migrator`, app version `0.1.0`, minimum system version `12.0`, a present referenced ICNS file, and both universal architectures before uploading the evidence.
 
 ## Human acceptance
+
+During v0.9.0 release preparation, the owner confirmed: "Mac checks already completed". This records the owner's confirmation, not a new automated or independently observed test. The exact human-tested macOS, hardware, filesystem, slicer versions, and artifact identity have not yet been linked to that confirmation. The detailed checklist and release-enable gate remain pending that evidence; the CI artifact above is not assumed to be the human-tested artifact.
 
 - [ ] Bambu Studio receives a graceful close request and exits normally.
 - [ ] Spool Ledger launches the installed Bambu Studio application.

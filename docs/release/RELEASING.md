@@ -20,6 +20,8 @@ The acceptance workflow never runs on a pull request or push, cannot mutate a re
 - Remove each platform row's `pending` field and set `release_enabled` to `true` only after its evidence document is complete.
 - Keep Linux absent from the release matrix.
 
+For v0.9.0 only, the owner authorized macOS alpha preview distribution with incomplete detailed human acceptance records. Keep `release_enabled: false` and the pending evidence visible; `alpha_preview_tag: "v0.9.0"` permits distribution only when the contract receives `--prerelease`. This exception does not establish full Mac support, authorize a stable release, or carry forward to later versions. Release notes must identify the Mac alpha and request testing feedback.
+
 ## 2. Prepare the version
 
 Set the same semantic version in:
@@ -39,14 +41,14 @@ npm run format:check
 npm run build
 npm run visual:check
 npm run release:check
-npm run release:contract -- --tag v0.1.0
+npm run release:contract -- --tag v0.9.0 --prerelease
 npm audit
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo test --manifest-path src-tauri/Cargo.toml --all-targets
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 ```
 
-Replace `v0.1.0` with the prepared version. A disabled platform, missing evidence file, unexpected platform, or version mismatch must fail before release work begins.
+Replace `v0.9.0` with the prepared version. A disabled platform without an applicable explicit preview exception, missing evidence file, unexpected platform, or version mismatch must fail before release work begins.
 
 ## 3. Protect and tag the accepted commit
 

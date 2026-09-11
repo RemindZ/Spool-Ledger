@@ -1,8 +1,8 @@
 {
   "version": 1,
   "brand": "spool-ledger",
-  "productRepo": "E:/RepositoryV2/Bambu Filament Migrator",
-  "destination": "E:/RepositoryV2/Bambu Filament Migrator/docs/marketing",
+  "productRepo": ".",
+  "destination": "docs/marketing",
   "intake": {
     "uiPolish": false,
     "audio": "music-and-voiceover",
@@ -215,6 +215,6 @@
     "Executor subagents were unavailable because the local plugin cache is not a valid Git worktree; the main session executes the serial asset recipes.",
     "The approved existing live product recording is reused instead of capturing the application again.",
     "Responsive exports are proof-card stills because the requested platforms are X and LinkedIn; no unrequested vertical video suite was rendered.",
-    "GPT Image 2 was not used because inspected real product imagery and the procedural brand ground were more faithful than a generated backdrop."
+    "GPT Image 2 generated graphics/explainers/orca-profile-choice-flow.png; graphics/explainers/profile-selection.png and graphics/explainers/expanded-bambu-list.png are derived explainer panels used by V2."
   ]
 }

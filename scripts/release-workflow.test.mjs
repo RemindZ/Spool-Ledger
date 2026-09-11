@@ -67,6 +67,8 @@ describe("release workflow policy", () => {
   it("creates draft releases and never publishes automatically", () => {
     const workflow = read(".github/workflows/release.yml");
     expect(workflow).toContain("gh release create");
+    expect(workflow).toMatch(/gh release create[^\n]*--draft --prerelease/);
+    expect(workflow).toMatch(/gh release edit[^\n]*--draft --prerelease/);
     expect(workflow).toContain("--draft");
     expect(workflow).toContain("--verify-tag");
     expect(workflow).not.toMatch(
@@ -97,6 +99,15 @@ describe("release workflow policy", () => {
     );
     expect(workflow).toContain("SHA256SUMS.txt");
     expect(workflow).toContain("cancel-in-progress: false");
+  });
+
+  it("fails immediately when a Windows native build or verification command fails", () => {
+    const windows = read(".github/workflows/release.yml")
+      .split("  build-windows:")[1]
+      .split("  build-macos:")[0];
+    expect(
+      windows.match(/\$PSNativeCommandUseErrorActionPreference = \$true/g),
+    ).toHaveLength(3);
   });
 
   it("keeps pull requests off all self-hosted runners", () => {

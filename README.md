@@ -132,11 +132,11 @@ The V2 promo narration and music were generated with ElevenLabs. Its profile-cho
 | -------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
 | Windows 11 x64 | Supported baseline    | Synthetic suite, copied-root acceptance, installer builds, and built-app WebView2 smoke testing |
 | Linux          | Not release-supported | No platform acceptance record                                                                   |
-| macOS          | Not release-supported | No platform acceptance record                                                                   |
+| macOS          | v0.9.0 alpha preview  | Universal build and copied-root evidence; detailed human acceptance records remain incomplete   |
 
-The current Windows artifacts are unsigned. Build them from source using the instructions below. A public signed release and Linux or macOS support are not claimed.
+The v0.9.0 public beta includes unsigned Windows x64 packages and an unsigned, unnotarized macOS alpha preview. **macOS needs additional testing, and we welcome your feedback.** A universal binary does not establish verified compatibility on every Intel or Apple Silicon Mac or on macOS 12. Signed builds and Linux support are not claimed.
 
-Protected release tags are prepared to build unsigned Windows x64 and universal macOS artifacts automatically, verify checksums and GitHub provenance, and assemble a draft release. The workflow remains blocked until both platform evidence rows are accepted. Publishing is always a separate owner action. See [the release process](docs/release/RELEASING.md).
+Protected release tags build the artifacts, verify checksums and GitHub provenance, and assemble a draft prerelease. The owner authorized a v0.9.0-only Mac alpha exception; the full Mac acceptance gate remains incomplete. Publishing is a separate owner action. See [the release process](docs/release/RELEASING.md).
 
 Linux support is deferred while Windows and macOS are prepared for the initial release. If you would use Spool Ledger on Linux, [open an issue](https://github.com/Remindz/bambu-filament-migrator/issues) and tell us your distribution, desktop environment, and how you installed Bambu Studio and OrcaSlicer. This will help prioritize the Linux formats and environments with real demand.
 
@@ -253,8 +253,8 @@ npm run tauri build -- --no-bundle
 
 The resulting unsigned artifacts are:
 
-- NSIS installer: `src-tauri/target/release/bundle/nsis/Spool Ledger_0.1.0_x64-setup.exe`
-- MSI installer: `src-tauri/target/release/bundle/msi/Spool Ledger_0.1.0_x64_en-US.msi`
+- NSIS installer: `src-tauri/target/release/bundle/nsis/Spool Ledger_0.9.0_x64-setup.exe`
+- MSI installer: `src-tauri/target/release/bundle/msi/Spool Ledger_0.9.0_x64_en-US.msi`
 - Standalone executable: `src-tauri/target/release/bambu-filament-migrator.exe`
 - Checksum manifest: `src-tauri/target/release/bundle/SHA256SUMS.txt`
 

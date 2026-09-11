@@ -18,7 +18,8 @@
       "unsigned": true,
       "evidence_document": "docs/compatibility/macos-universal-baseline.md",
       "artifact_kinds": ["dmg"],
-      "pending": "Real-installation discovery, copied-root acceptance, Bambu load, restart/resynchronization, and operator AMS acceptance"
+      "alpha_preview_tag": "v0.9.0",
+      "pending": "Exact human-tested Mac environment and artifact identity; additional installation, Bambu synchronization and operator AMS testing"
     }
   ]
 }

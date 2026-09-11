@@ -161,6 +161,49 @@ describe("release contract", () => {
     ).toThrow(/unexpected release platform.*linux-x64/i);
   });
 
+  it("allows only the owner-approved v0.9.0 Mac alpha prerelease", () => {
+    const alpha = structuredClone(matrix);
+    alpha.platforms[1].release_enabled = false;
+    alpha.platforms[1].pending =
+      "Exact human acceptance environment and artifact";
+    alpha.platforms[1].alpha_preview_tag = "v0.9.0";
+    const candidate = {
+      tag: "v0.9.0",
+      versions: {
+        packageJson: "0.9.0",
+        cargoToml: "0.9.0",
+        tauriConfig: "0.9.0",
+      },
+      matrix: alpha,
+      evidenceExists,
+      prerelease: true,
+    };
+    expect(validateReleaseContract(candidate).version).toBe("0.9.0");
+    expect(() =>
+      validateReleaseContract({ ...candidate, prerelease: false }),
+    ).toThrow(/not release enabled/i);
+    expect(() =>
+      validateReleaseContract({
+        ...candidate,
+        tag: "v0.9.1",
+        versions: {
+          packageJson: "0.9.1",
+          cargoToml: "0.9.1",
+          tauriConfig: "0.9.1",
+        },
+      }),
+    ).toThrow(/not release enabled/i);
+    const windows = structuredClone(alpha);
+    windows.platforms[0].release_enabled = false;
+    windows.platforms[0].alpha_preview_tag = "v0.9.0";
+    expect(() =>
+      validateReleaseContract({ ...candidate, matrix: windows }),
+    ).toThrow(/alpha preview/i);
+    expect(() =>
+      validateReleaseContract({ ...candidate, evidenceExists: () => false }),
+    ).toThrow(/evidence document/i);
+  });
+
   it("produces deterministic unsigned artifact names", () => {
     expect(artifactNames("0.1.0")).toEqual([
       "Spool-Ledger-v0.1.0-windows-x64-setup.exe",
