@@ -1,6 +1,6 @@
 [package]
 name = "bambu-filament-migrator"
-version = "0.1.0"
+version = "0.9.0"
 description = "Migrate OrcaSlicer and Bambu Studio filament presets into Bambu custom filaments"
 authors = ["Remindz"]
 edition = "2024"

@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           npm run release:check
-          contract=$(npm run --silent release:contract -- --tag "$RELEASE_TAG")
+          contract=$(npm run --silent release:contract -- --tag "$RELEASE_TAG" --prerelease)
           version=$(node -e 'console.log(JSON.parse(process.argv[1]).version)' "$contract")
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -105,6 +105,7 @@ jobs:
       - name: Verify tagged Windows source
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           npm run release:check
           npm run format:check
           npm run lint
@@ -120,6 +121,7 @@ jobs:
       - name: Audit Rust dependencies and licenses
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           cargo install cargo-deny --version 0.20.2 --locked
           cargo deny --manifest-path src-tauri/Cargo.toml check advisories licenses sources
 
@@ -128,6 +130,7 @@ jobs:
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           New-Item -ItemType Directory -Force release-assets | Out-Null
 
           npm run tauri build -- --bundles nsis
@@ -310,7 +313,7 @@ jobs:
           mkdir final
           cp downloaded/windows/Spool-Ledger-* final/
           cp downloaded/macos/Spool-Ledger-* final/
-          contract=$(npm run --silent release:contract -- --tag "$RELEASE_TAG")
+          contract=$(npm run --silent release:contract -- --tag "$RELEASE_TAG" --prerelease)
           node - "$contract" <<'NODE'
           const {readdirSync} = require("node:fs");
           const {isDeepStrictEqual} = require("node:util");
@@ -394,8 +397,8 @@ jobs:
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             test "$(cat existing-draft)" = "true" || { echo "Refusing to modify a published release"; exit 1; }
           else
-            gh release create "$RELEASE_TAG" --draft --verify-tag \
-              --title "Spool Ledger v$VERSION (unsigned initial release)" \
+            gh release create "$RELEASE_TAG" --draft --prerelease --verify-tag \
+              --title "Spool Ledger v$VERSION (unsigned beta)" \
               --notes-file generated-release-notes.md
           fi
 
@@ -416,7 +419,7 @@ jobs:
           mapfile -t remote_assets < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)
           diff -u <(printf '%s\n' "${expected_assets[@]}") <(printf '%s\n' "${remote_assets[@]}")
           require_draft
-          gh release edit "$RELEASE_TAG" --draft \
-            --title "Spool Ledger v$VERSION (unsigned initial release)" \
+          gh release edit "$RELEASE_TAG" --draft --prerelease \
+            --title "Spool Ledger v$VERSION (unsigned beta)" \
             --notes-file generated-release-notes.md
           require_draft
