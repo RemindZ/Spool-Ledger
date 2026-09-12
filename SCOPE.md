@@ -619,7 +619,7 @@ The interface must feel like a maintained desktop product rather than a raw conf
 - Progress reflects discovery, planning, backup, write, launch, and synchronization separately.
 - Local inventory progress uses real loaded-of-total values and the approved theme-specific identity assets; it never fabricates counts.
 
-The checked-in interactive reference and `docs/design/DESIGN.md` define the detailed visual contract. Existing production behavior, schemas, adapters, and safety requirements remain authoritative when a prototype interaction conflicts with this scope.
+`DESIGN.md` defines the detailed visual contract, and production asset hashes preserve the approved identity. Optional local design references are not required for builds or tests. Existing production behavior, schemas, adapters, and safety requirements remain authoritative when a prototype interaction conflicts with this scope.
 
 ## 18. Security and privacy
 

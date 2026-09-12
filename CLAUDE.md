@@ -14,9 +14,10 @@ Use this order when requirements appear to conflict:
 
 1. Existing production behavior, schemas, adapters, tests, and safety contracts.
 2. `SCOPE.md`, including its acceptance criteria and official-target-only v1 boundary.
-3. `docs/design/DESIGN.md` and `docs/design/brand-spec.md`.
-4. The immutable 14-file design handoff in `design-v2/`.
-5. `README.md` and generated documentation media.
+3. `DESIGN.md` and the approved production asset hashes in `src/lib/__tests__/design-v2-handoff.test.ts`.
+4. `README.md` and generated documentation media.
+
+`design-v2/` and `docs/design/` are optional, ignored local design references. Builds and tests must not require them in a clean checkout.
 
 The prototype demonstrates presentation and interaction intent. It never authorizes weaker validation, fabricated state, custom-printer support, or a different backend contract.
 
@@ -123,7 +124,7 @@ Release requirements that must not regress:
 
 ## Documentation and demo media
 
-- README screenshots and video use only synthetic data and actual production components.
+- README media uses actual production components. Synthetic data remains the default; the owner-approved first-run setup screenshot is captured from the real desktop application with read-only installed-profile discovery and actual printer artwork. Real workflow recordings require explicit approval for their data and execution scope.
 - Do not expose personal account IDs, local paths, tokens, or live profile contents.
 - By user request, documentation demonstrations must not use Sunlu or Polymaker. Use synthetic vendors such as Fiberlogy and Overture.
 - Never stage or invent progress as a claim about a live migration. Label fixture-based screenshots and video as synthetic demonstrations.

@@ -7,3 +7,5 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 spool-ledger-claude-code-handoff-*.zip
+/design-v2/
+/docs/design/
