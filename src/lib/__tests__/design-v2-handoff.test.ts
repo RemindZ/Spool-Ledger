@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -21,18 +22,24 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(app).toContain('src="/spool-ledger-logo-dark.png"');
   });
 
-  it("copies every production identity asset byte-for-byte from the handoff", () => {
-    for (const name of [
-      "spool-ledger-lockup-transparent.png",
-      "spool-ledger-logo-light.png",
-      "spool-ledger-logo-dark.png",
-      "spool-ledger-readme-hero.png",
-    ]) {
+  it("preserves the approved production identity asset hashes", () => {
+    const approved = {
+      "spool-ledger-lockup-transparent.png":
+        "5a725861c6979e0f1ab426e288bcb46e06c13e6b9e7bf0a96683de4e339d699d",
+      "spool-ledger-logo-light.png":
+        "0909f35d5bab20aa4bbcd24d6df05e689a11fe7d90917da4a00107df2010f4d0",
+      "spool-ledger-logo-dark.png":
+        "22faf6b1bfcfd573a764d383d1a7a0b20f5d12202bc5b7fa55d9f3d548ffc3e9",
+      "spool-ledger-readme-hero.png":
+        "cc482676f1aae5d32c59632a51d96d98e68005d037960e855b75c688fae7d235",
+    };
+    for (const [name, hash] of Object.entries(approved)) {
       const production = `${root}/public/${name}`;
       expect(existsSync(production), name).toBe(true);
-      expect(readFileSync(production)).toEqual(
-        readFileSync(`${root}/design-v2/${name}`),
-      );
+      expect(
+        createHash("sha256").update(readFileSync(production)).digest("hex"),
+        name,
+      ).toBe(hash);
     }
   });
 
@@ -81,20 +88,10 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(css).toContain("@keyframes workspace-view-in");
   });
 
-  it("keeps the checked-in interactive reference identical to the approved v2 handoff", () => {
-    expect(
-      readFileSync(`${root}/docs/design/bambu-filament-migrator.html`),
-    ).toEqual(readFileSync(`${root}/design-v2/bambu-filament-migrator.html`));
-    for (const name of [
-      "spool-ledger-lockup-transparent.png",
-      "spool-ledger-logo-light.png",
-      "spool-ledger-logo-dark.png",
-    ]) {
-      expect(existsSync(`${root}/docs/design/${name}`), name).toBe(true);
-      expect(readFileSync(`${root}/docs/design/${name}`)).toEqual(
-        readFileSync(`${root}/design-v2/${name}`),
-      );
-    }
+  it("keeps local design directories ignored", () => {
+    const ignored = read(".gitignore").split(/\r?\n/);
+    expect(ignored).toContain("/design-v2/");
+    expect(ignored).toContain("/docs/design/");
   });
 
   it("keeps synthetic inventory and onboarding captures on the production identity", () => {
@@ -107,8 +104,7 @@ describe("Spool Ledger design v2 handoff", () => {
   });
 
   it("keeps the production design contract aligned with v2 identity and official-only safety", () => {
-    const design = read("docs/design/DESIGN.md");
-    const brand = read("docs/design/brand-spec.md");
+    const design = read("DESIGN.md");
 
     expect(design).toContain("# Spool Ledger Design Handoff");
     expect(design).toContain("Bambu Filament Migrator");
@@ -117,14 +113,6 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(design).toContain("Target profile required");
     expect(design).toContain("Registered source row");
     expect(design).not.toContain("Show custom printers");
-    expect(read("DESIGN.md").replaceAll("\r\n", "\n")).toBe(
-      read("docs/design/DESIGN.md").replaceAll("\r\n", "\n"),
-    );
-    expect(brand).toContain("# Spool Ledger brand specification");
-    expect(brand).toContain("`#0D1410`");
-    expect(existsSync(`${root}/docs/design/brand-identity-directions.md`)).toBe(
-      true,
-    );
   });
 
   it("keeps the authoritative scope aligned with the shipped identity and setup contracts", () => {
@@ -186,6 +174,15 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(readme).not.toContain("Printer-selectable");
     expect(readme).not.toContain("AMS-ready");
     expect(fixture).not.toMatch(/Polymaker|Sunlu/i);
+  });
+
+  it("embeds the V3 showcase using its permanent GitHub attachment URL", () => {
+    const readme = read("README.md").replaceAll("\r\n", "\n");
+    expect(readme).toContain(
+      "\n\nhttps://github.com/user-attachments/assets/c8625391-d9cf-4cdc-ac9a-dd7475e481dd\n\n",
+    );
+    expect(readme).not.toContain("private-user-images.githubusercontent.com");
+    expect(readme).not.toContain("?jwt=");
   });
 
   it("makes Spool Ledger dominant in repository and desktop identity surfaces", () => {

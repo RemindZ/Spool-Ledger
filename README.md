@@ -17,20 +17,11 @@
   <code>Windows 11</code>&nbsp;&nbsp;·&nbsp;&nbsp;<code>Local-first</code>&nbsp;&nbsp;·&nbsp;&nbsp;<code>No telemetry</code>&nbsp;&nbsp;·&nbsp;&nbsp;<code>AGPL-3.0</code>
 </p>
 
-<p align="center">
-  <a href="docs/marketing/videos/spool-ledger-promo-v2.mp4">
-    <img src="docs/marketing/graphics/posters/promo-v2-hook.png" alt="Watch the Spool Ledger promo: save time by bringing your Orca profiles with you" width="100%" />
-  </a>
-</p>
+## Product showcase
 
-<p align="center">
-  <a href="docs/marketing/videos/spool-ledger-promo-v2.mp4"><strong>▶ Watch the 48-second promo</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="docs/marketing/videos/spool-ledger-showcase.mp4"><strong>Watch the real product showcase</strong></a>
-</p>
+https://github.com/user-attachments/assets/c8625391-d9cf-4cdc-ac9a-dd7475e481dd
 
-> [!NOTE]
-> GitHub README files do not reliably play repository-hosted MP4 files inline. The preview above links directly to the full 1080p video.
+Watch the 67-second showcase with narration and music. It demonstrates local profile creation, followed by the Bambu Studio and AMS handoff.
 
 ## Keep the profiles you already tuned
 
@@ -63,7 +54,7 @@ Bambu Studio normally presents Bambu and Generic filament choices. Spool Ledger 
 ## See the workflow
 
 <p align="center">
-  <a href="docs/marketing/videos/spool-ledger-promo-v2.mp4">
+  <a href="#product-showcase">
     <img src="docs/marketing/graphics/readme.gif" alt="Animated Spool Ledger workflow preview" width="100%" />
   </a>
 </p>
@@ -76,9 +67,9 @@ Bambu Studio normally presents Bambu and Generic filament choices. Spool Ledger 
 
 ### First-run setup
 
-![Spool Ledger first-run source, profile type, and official printer setup](docs/screenshots/setup-workspace.png)
+![Spool Ledger Windows desktop setup with installed printer artwork and nozzle options](docs/screenshots/setup-workspace.png)
 
-Choose OrcaSlicer, Bambu Studio, or both as sources. Select factory or custom profiles, enable official printers, and set default nozzles. The destination manager can change these defaults later.
+Choose OrcaSlicer, Bambu Studio, or both as sources. Select factory or custom profiles, enable official printers, and set default nozzles. The destination manager can change these defaults later. This screenshot shows the actual desktop application's printer cards and installed artwork.
 
 ### Profile inventory
 
@@ -114,17 +105,18 @@ System, light, and dark modes use the same migration workflow.
 
 | Video                                                                             | What it shows                                                                                           | Length |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -----: |
+| [Product-facing showcase V3](#product-showcase)                                   | A real app recording of local profile creation, followed by the Bambu Studio and AMS handoff            | 67.05s |
 | [Plain-language promo V2](docs/marketing/videos/spool-ledger-promo-v2.mp4)        | Saved setup time, built-in and custom Orca profile choice, and the normal Bambu Studio plus AMS handoff | 48.04s |
-| [Approved live product showcase](docs/marketing/videos/spool-ledger-showcase.mp4) | A real migration of Overture Matte PLA and Overture PLA Pro with private local details hidden           | 50.13s |
+| [Earlier approved live showcase](docs/marketing/videos/spool-ledger-showcase.mp4) | A real migration of Overture Matte PLA and Overture PLA Pro with private local details hidden           | 50.13s |
 | [Silent promo master](docs/marketing/videos/spool-ledger-promo-silent.mp4)        | The campaign without narration or music                                                                 | 48.04s |
 | [Logo treatment](docs/marketing/videos/spool-ledger-logo-reveal.mp4)              | Reusable Spool Ledger brand reveal                                                                      |  5.06s |
 | [Synthetic workflow tour](docs/demo/spool-ledger-product-tour.mp4)                | A complete temporary-root demonstration with no live profile writes                                     |   ~60s |
 | [Synthetic narrated tour](docs/demo/spool-ledger-product-tour-voiceover.mp4)      | The same isolated demonstration with disclosed AI narration                                             |   ~60s |
 
-The V2 promo narration and music were generated with ElevenLabs. Its profile-choice concept illustration was generated with GPT Image 2. The live showcase narration was generated with OpenAI. See the complete [AI and media disclosure](docs/marketing/AI-DISCLOSURE.md).
+The V3 showcase narration and music were generated with ElevenLabs. The V2 promo narration and music were also generated with ElevenLabs; its profile-choice concept illustration was generated with GPT Image 2. The earlier live showcase narration was generated with OpenAI. See the complete [AI and media disclosure](docs/marketing/AI-DISCLOSURE.md).
 
 > [!IMPORTANT]
-> The live showcase proves local creation, Bambu Studio loading, and unique cloud IDs for its approved run. AMS visibility still requires a person to check the printer or AMS workflow. Spool Ledger never records AMS verification automatically.
+> The V3 showcase demonstrates local creation; its Bambu Studio and AMS handoff does not claim completed synchronization. The earlier 50-second showcase proves local creation, Bambu Studio loading, and unique cloud IDs for its approved run. AMS visibility still requires a person to check the printer or AMS workflow. Spool Ledger never records AMS verification automatically.
 
 ## Current support
 
@@ -258,7 +250,7 @@ The resulting unsigned artifacts are:
 - Standalone executable: `src-tauri/target/release/bambu-filament-migrator.exe`
 - Checksum manifest: `src-tauri/target/release/bundle/SHA256SUMS.txt`
 
-The behavior and acceptance contract is in [SCOPE.md](SCOPE.md). Project rules are in [CLAUDE.md](CLAUDE.md). The interface handoff is in [docs/design/DESIGN.md](docs/design/DESIGN.md).
+The behavior and acceptance contract is in [SCOPE.md](SCOPE.md). Project rules are in [CLAUDE.md](CLAUDE.md). The interface handoff is in [DESIGN.md](DESIGN.md).
 
 ## License
 
