@@ -42,11 +42,13 @@
 
 ## README header
 
-- `graphics/spool-ledger-header.png` is an original 1800 × 560 still rendered in Blender 5.0.1 with Cycles and OptiX. It replaces the repeated workflow GIF with a shorter decorative banner.
+- The header is an original eight-second Blender 5.0.1 animation rendered with Cycles and OptiX. It shows rotating filament spools and a gently opening-and-closing front flange. The disconnected decorative strand from the initial still was removed.
+- `graphics/spool-ledger-header.webp` supplies the full-color 1440 × 448 loop at 20 fps. `graphics/spool-ledger-header.gif` is an animated fallback at the same dimensions and 12.5 fps. Both loop continuously without audio. The README selects the clean 1800 × 560 `graphics/spool-ledger-header.png` still when the viewer requests reduced motion.
 - Twenty independent creative directions informed the final composition: a precision spool assembly, detailed filament windings, an orange routing curve, green accents, and a dark studio setting. Geometry, materials and lighting were authored for this image with AI assistance.
 - The exact supplied `public/spool-ledger-lockup-transparent.png` was composited over the render with proportional scaling. The logo was not traced, redrawn or reconstructed in 3D. The source PNG remains unchanged.
 - The sculpture is original decorative artwork, not an application screenshot, printer product, migration progress display, or evidence of synchronization.
-- Header SHA-256: `78595b588d3553d06b4d3f96e31509f57bff15ebf8787d89555eeaefc7c1bcfe`.
+- All 160 WebP frames and 100 GIF frames were decoded and verified to change. Both versions run for exactly eight seconds; matching start/end poses were verified before encoding.
+- SHA-256: WebP `780369bfaddb0fc082bd9d43a6d5f5a4a45ba3cedb1e7433605b9146328ac03a`; GIF `87fc76e96e3c481493b08f339c54ddfd8a8e5413dd2fdff356ef3e6a085a2468`; reduced-motion PNG `827012ebdbc52806bd480200892488f692af3789fe15366d7ad48088625dfe05`.
 
 ## Graphics
 

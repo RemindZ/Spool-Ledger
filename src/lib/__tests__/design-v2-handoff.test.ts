@@ -204,6 +204,36 @@ describe("Spool Ledger design v2 handoff", () => {
     );
   });
 
+  it("uses an animated header with a reduced-motion still", () => {
+    const readme = read("README.md");
+    expect(readme).toContain("<picture>");
+    expect(readme).toContain('media="(prefers-reduced-motion: reduce)"');
+    expect(readme).toContain(
+      'srcset="docs/marketing/graphics/spool-ledger-header.png"',
+    );
+    expect(readme).toContain(
+      'src="docs/marketing/graphics/spool-ledger-header.gif"',
+    );
+    expect(readme).toContain(
+      'type="image/webp" srcset="docs/marketing/graphics/spool-ledger-header.webp"',
+    );
+    const webp = readFileSync(
+      `${root}/docs/marketing/graphics/spool-ledger-header.webp`,
+    );
+    expect(webp.subarray(0, 4).toString()).toBe("RIFF");
+    expect(webp.subarray(8, 12).toString()).toBe("WEBP");
+    expect(webp.includes(Buffer.from("ANIM"))).toBe(true);
+    expect(webp.length).toBeLessThan(5_000_000);
+    const animation = readFileSync(
+      `${root}/docs/marketing/graphics/spool-ledger-header.gif`,
+    );
+    expect(animation.subarray(0, 6).toString()).toBe("GIF89a");
+    expect(animation.readUInt16LE(6)).toBe(1440);
+    expect(animation.readUInt16LE(8)).toBe(448);
+    expect(animation.includes(Buffer.from("NETSCAPE2.0"))).toBe(true);
+    expect(animation.length).toBeLessThan(10_000_000);
+  });
+
   it("preserves the wide Blender header and its supplied-logo provenance", () => {
     const header = readFileSync(
       `${root}/docs/marketing/graphics/spool-ledger-header.png`,
@@ -213,7 +243,7 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(header.readUInt32BE(20)).toBe(560);
     expect(header.length).toBeLessThan(1_000_000);
     expect(createHash("sha256").update(header).digest("hex")).toBe(
-      "78595b588d3553d06b4d3f96e31509f57bff15ebf8787d89555eeaefc7c1bcfe",
+      "827012ebdbc52806bd480200892488f692af3789fe15366d7ad48088625dfe05",
     );
     const disclosure = read("docs/marketing/AI-DISCLOSURE.md");
     expect(disclosure).toContain("Blender 5.0.1");
@@ -228,7 +258,7 @@ describe("Spool Ledger design v2 handoff", () => {
     const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
 
     expect(readme).toContain(
-      'src="docs/marketing/graphics/spool-ledger-header.png"',
+      'src="docs/marketing/graphics/spool-ledger-header.gif"',
     );
     expect(readme).not.toContain('src="public/spool-ledger-readme-hero.png"');
     expect(readme).toContain('alt="Spool Ledger · Bambu Filament Migrator,');

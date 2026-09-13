@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="docs/marketing/graphics/spool-ledger-header.png" alt="Spool Ledger · Bambu Filament Migrator, with a Blender-rendered filament sculpture" width="100%" />
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="docs/marketing/graphics/spool-ledger-header.png" />
+    <source type="image/webp" srcset="docs/marketing/graphics/spool-ledger-header.webp" />
+    <img src="docs/marketing/graphics/spool-ledger-header.gif" alt="Spool Ledger · Bambu Filament Migrator, with gently rotating Blender-rendered filament spools" width="100%" />
+  </picture>
 </p>
 
 <p align="center">
