@@ -179,7 +179,7 @@ describe("Spool Ledger design v2 handoff", () => {
   it("embeds the V4 showcase using its permanent GitHub attachment URL", () => {
     const readme = read("README.md").replaceAll("\r\n", "\n");
     expect(readme).toContain(
-      "\n\nhttps://github.com/user-attachments/assets/792b6fb9-8795-4e5a-a661-bcad3329ea5c\n\n",
+      "\n\nhttps://github.com/user-attachments/assets/b0ad00a4-eca3-4415-a858-2d15bdb434c0\n\n",
     );
     expect(readme).toContain("61-second showcase");
     expect(readme).toContain("temporary demonstration workspace");

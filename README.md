@@ -20,7 +20,7 @@
 
 ## Product showcase
 
-https://github.com/user-attachments/assets/792b6fb9-8795-4e5a-a661-bcad3329ea5c
+https://github.com/user-attachments/assets/b0ad00a4-eca3-4415-a858-2d15bdb434c0
 
 Watch the 61-second showcase with narration and music. It shows the actual Windows desktop app in light mode, using a temporary demonstration workspace for local profile creation. Bambu Studio synchronization and your printer or AMS check come next. [How this demo was made](docs/marketing/AI-DISCLOSURE.md#product-facing-showcase-v4).
 
