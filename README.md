@@ -1,12 +1,9 @@
 <p align="center">
-  <img src="public/spool-ledger-lockup-transparent.png" alt="Spool Ledger · Bambu Filament Migrator" width="680" />
+  <img src="docs/marketing/graphics/spool-ledger-header.png" alt="Spool Ledger · Bambu Filament Migrator, with a Blender-rendered filament sculpture" width="100%" />
 </p>
 
-<h1 align="center">Spool Ledger</h1>
-
 <p align="center">
-  <strong>Bambu Filament Migrator</strong><br />
-  Bring your Orca filament profiles into Bambu Studio without setting them up again.
+  <strong>Bring your Orca filament profiles into Bambu Studio without setting them up again.</strong>
 </p>
 
 <p align="center">
@@ -19,9 +16,9 @@
 
 ## Product showcase
 
-https://github.com/user-attachments/assets/c8625391-d9cf-4cdc-ac9a-dd7475e481dd
+https://github.com/user-attachments/assets/792b6fb9-8795-4e5a-a661-bcad3329ea5c
 
-Watch the 67-second showcase with narration and music. It demonstrates local profile creation, followed by the Bambu Studio and AMS handoff.
+Watch the 61-second showcase with narration and music. It shows the actual Windows desktop app in light mode, using a temporary demonstration workspace for local profile creation. Bambu Studio synchronization and your printer or AMS check come next. [How this demo was made](docs/marketing/AI-DISCLOSURE.md#product-facing-showcase-v4).
 
 ## Keep the profiles you already tuned
 
@@ -50,18 +47,6 @@ Bambu Studio normally presents Bambu and Generic filament choices. Spool Ledger 
 - **Review before writing.** See exact names, operations, conflicts, and blocked items in a frozen plan.
 - **Stay local.** Spool Ledger does not ask for Bambu credentials or call undocumented cloud APIs.
 - **Restore safely.** Restore only files still owned by a migration run, without unpacking an entire account backup.
-
-## See the workflow
-
-<p align="center">
-  <a href="#product-showcase">
-    <img src="docs/marketing/graphics/readme.gif" alt="Animated Spool Ledger workflow preview" width="100%" />
-  </a>
-</p>
-
-| 1. Choose                                               | 2. Review                                | 3. Run                                                               | 4. Confirm                                                               |
-| ------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Select source profiles, official printers, and nozzles. | Inspect the exact frozen migration plan. | Commit the reviewed local transaction and watch each evidence level. | Let Bambu Studio update normally, then check the result in AMS yourself. |
 
 ## Interface
 
@@ -101,34 +86,17 @@ Restore previews every run-owned path. If another process changed a migrated fil
 
 System, light, and dark modes use the same migration workflow.
 
-## Product videos
-
-| Video                                                                             | What it shows                                                                                           | Length |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -----: |
-| [Product-facing showcase V3](#product-showcase)                                   | A real app recording of local profile creation, followed by the Bambu Studio and AMS handoff            | 67.05s |
-| [Plain-language promo V2](docs/marketing/videos/spool-ledger-promo-v2.mp4)        | Saved setup time, built-in and custom Orca profile choice, and the normal Bambu Studio plus AMS handoff | 48.04s |
-| [Earlier approved live showcase](docs/marketing/videos/spool-ledger-showcase.mp4) | A real migration of Overture Matte PLA and Overture PLA Pro with private local details hidden           | 50.13s |
-| [Silent promo master](docs/marketing/videos/spool-ledger-promo-silent.mp4)        | The campaign without narration or music                                                                 | 48.04s |
-| [Logo treatment](docs/marketing/videos/spool-ledger-logo-reveal.mp4)              | Reusable Spool Ledger brand reveal                                                                      |  5.06s |
-| [Synthetic workflow tour](docs/demo/spool-ledger-product-tour.mp4)                | A complete temporary-root demonstration with no live profile writes                                     |   ~60s |
-| [Synthetic narrated tour](docs/demo/spool-ledger-product-tour-voiceover.mp4)      | The same isolated demonstration with disclosed AI narration                                             |   ~60s |
-
-The V3 showcase narration and music were generated with ElevenLabs. The V2 promo narration and music were also generated with ElevenLabs; its profile-choice concept illustration was generated with GPT Image 2. The earlier live showcase narration was generated with OpenAI. See the complete [AI and media disclosure](docs/marketing/AI-DISCLOSURE.md).
-
-> [!IMPORTANT]
-> The V3 showcase demonstrates local creation; its Bambu Studio and AMS handoff does not claim completed synchronization. The earlier 50-second showcase proves local creation, Bambu Studio loading, and unique cloud IDs for its approved run. AMS visibility still requires a person to check the printer or AMS workflow. Spool Ledger never records AMS verification automatically.
-
 ## Current support
 
-| Platform       | Status                | Evidence boundary                                                                               |
-| -------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
-| Windows 11 x64 | Supported baseline    | Synthetic suite, copied-root acceptance, installer builds, and built-app WebView2 smoke testing |
-| Linux          | Not release-supported | No platform acceptance record                                                                   |
-| macOS          | v0.9.0 alpha preview  | Universal build and copied-root evidence; detailed human acceptance records remain incomplete   |
+| Platform       | Status                | Notes                               |
+| -------------- | --------------------- | ----------------------------------- |
+| Windows 11 x64 | Public beta           | Unsigned Windows installers and app |
+| macOS          | Alpha preview         | Universal build. Needs more testing |
+| Linux          | Not release-supported | No Linux release is available       |
 
-The v0.9.0 public beta includes unsigned Windows x64 packages and an unsigned, unnotarized macOS alpha preview. **macOS needs additional testing, and we welcome your feedback.** A universal binary does not establish verified compatibility on every Intel or Apple Silicon Mac or on macOS 12. Signed builds and Linux support are not claimed.
+The v0.9.0 public beta includes unsigned Windows x64 packages and an unsigned, unnotarized macOS alpha preview. **macOS needs more testing, and we welcome your feedback.**
 
-Protected release tags build the artifacts, verify checksums and GitHub provenance, and assemble a draft prerelease. The owner authorized a v0.9.0-only Mac alpha exception; the full Mac acceptance gate remains incomplete. Publishing is a separate owner action. See [the release process](docs/release/RELEASING.md).
+See [the release process](docs/release/RELEASING.md) for packaging and verification details.
 
 Linux support is deferred while Windows and macOS are prepared for the initial release. If you would use Spool Ledger on Linux, [open an issue](https://github.com/Remindz/bambu-filament-migrator/issues) and tell us your distribution, desktop environment, and how you installed Bambu Studio and OrcaSlicer. This will help prioritize the Linux formats and environments with real demand.
 

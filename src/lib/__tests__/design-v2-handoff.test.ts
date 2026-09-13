@@ -166,7 +166,7 @@ describe("Spool Ledger design v2 handoff", () => {
       "spool-ledger-product-tour.mp4",
       "spool-ledger-product-tour-voiceover.mp4",
     ]) {
-      expect(readme, name).toContain(`docs/demo/${name}`);
+      expect(readme, name).not.toContain(`docs/demo/${name}`);
       expect(existsSync(`${root}/docs/demo/${name}`), name).toBe(true);
     }
     expect(existsSync(`${root}/docs/demo/MUSIC-LICENSE.md`)).toBe(true);
@@ -176,13 +176,51 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(fixture).not.toMatch(/Polymaker|Sunlu/i);
   });
 
-  it("embeds the V3 showcase using its permanent GitHub attachment URL", () => {
+  it("embeds the V4 showcase using its permanent GitHub attachment URL", () => {
     const readme = read("README.md").replaceAll("\r\n", "\n");
     expect(readme).toContain(
-      "\n\nhttps://github.com/user-attachments/assets/c8625391-d9cf-4cdc-ac9a-dd7475e481dd\n\n",
+      "\n\nhttps://github.com/user-attachments/assets/792b6fb9-8795-4e5a-a661-bcad3329ea5c\n\n",
+    );
+    expect(readme).toContain("61-second showcase");
+    expect(readme).toContain("temporary demonstration workspace");
+    expect(readme).toContain(
+      "Bambu Studio synchronization and your printer or AMS check come next",
     );
     expect(readme).not.toContain("private-user-images.githubusercontent.com");
     expect(readme).not.toContain("?jwt=");
+  });
+
+  it("keeps the README focused on one showcase and plain support guidance", () => {
+    const readme = read("README.md");
+    expect(readme).not.toContain("## See the workflow");
+    expect(readme).not.toContain("## Product videos");
+    expect(readme).not.toContain("docs/marketing/graphics/readme.gif");
+    const support = readme
+      .split("## Current support")[1]
+      .split("## What it does")[0];
+    expect(support).toContain("macOS needs more testing");
+    expect(support).not.toMatch(
+      /human acceptance|acceptance gate|owner authorized/i,
+    );
+  });
+
+  it("preserves the wide Blender header and its supplied-logo provenance", () => {
+    const header = readFileSync(
+      `${root}/docs/marketing/graphics/spool-ledger-header.png`,
+    );
+    expect(header.subarray(1, 4).toString()).toBe("PNG");
+    expect(header.readUInt32BE(16)).toBe(1800);
+    expect(header.readUInt32BE(20)).toBe(560);
+    expect(header.length).toBeLessThan(1_000_000);
+    expect(createHash("sha256").update(header).digest("hex")).toBe(
+      "78595b588d3553d06b4d3f96e31509f57bff15ebf8787d89555eeaefc7c1bcfe",
+    );
+    const disclosure = read("docs/marketing/AI-DISCLOSURE.md");
+    expect(disclosure).toContain("Blender 5.0.1");
+    expect(disclosure).toContain("public/spool-ledger-lockup-transparent.png");
+    expect(disclosure).toContain(
+      "logo was not traced, redrawn or reconstructed",
+    );
   });
 
   it("makes Spool Ledger dominant in repository and desktop identity surfaces", () => {
@@ -190,11 +228,10 @@ describe("Spool Ledger design v2 handoff", () => {
     const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
 
     expect(readme).toContain(
-      'src="public/spool-ledger-lockup-transparent.png"',
+      'src="docs/marketing/graphics/spool-ledger-header.png"',
     );
     expect(readme).not.toContain('src="public/spool-ledger-readme-hero.png"');
-    expect(readme).toContain('<h1 align="center">Spool Ledger</h1>');
-    expect(readme).toContain("<strong>Bambu Filament Migrator</strong>");
+    expect(readme).toContain('alt="Spool Ledger · Bambu Filament Migrator,');
     expect(readme).not.toContain(
       "approved product design, interactive UI prototype",
     );
