@@ -9,13 +9,13 @@
 
 ## Product-facing showcase V4
 
-- The 61-second showcase embedded in the README is the balanced-music V4 cut.
+- The 61-second showcase embedded in the README is the balanced-music V4 cut, with the outro address updated to `github.com/RemindZ/Spool-Ledger`. Only the final 9.5 seconds were re-rendered for that URL change; the preceding footage and complete balanced audio stream were preserved.
 - Narration was generated with ElevenLabs `eleven_multilingual_v2`; the instrumental score was generated with ElevenLabs `music_v2`. These are AI-generated audio assets, not a human speaker recording. Use and distribution remain subject to the terms of the account used for generation.
 - Native screen capture records the actual Spool Ledger Windows desktop app in light mode, not a browser fixture. Editing includes close crops, adjusted playback speed, and a short hold on the genuine local result; this is not a real-time speed benchmark.
 - The temporary-workspace demonstration uses copied Overture Matte PLA and Overture PLA Pro factory presets and actual printer artwork from a copied installed catalog. The real application transaction created six local files for two profiles. Protected live-profile roots remained unchanged, and personal paths and account details were obscured.
 - The highest demonstrated evidence is `created_local`. Bambu Studio synchronization and human printer or AMS checks are next steps, not completed outcomes. No Bambu Studio automation or cloud/AMS verification is shown.
 - The supplied production logo is used without redrawing. No Blender assets were used.
-- The [GitHub-hosted video](https://github.com/user-attachments/assets/792b6fb9-8795-4e5a-a661-bcad3329ea5c) matches the verified balanced-music V4 file byte-for-byte: SHA-256 `82fbdc4189b3e19dc727d0cf11c60f872b5005979cac4700491b3b1ab6f296ab`.
+- The [GitHub-hosted video](https://github.com/user-attachments/assets/b0ad00a4-eca3-4415-a858-2d15bdb434c0) matches the verified corrected-URL balanced-music V4 file byte-for-byte: SHA-256 `347cd7daf9dc47d99ae64cd780df98b9742c60a9a49ec622845567e20bd5be13`.
 
 ## Product-facing showcase V3
 
