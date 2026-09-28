@@ -1,8 +1,8 @@
 ## Unsigned initial release
 
-Spool Ledger v0.9.0 is the first public beta.
+Spool Ledger v1.0.0 is the first stable release.
 
-Windows x64 is the beta-supported platform. **macOS is an alpha preview: additional testing is needed, and we welcome your feedback.** The Mac build contains Apple Silicon and Intel executable slices, but exact human-tested environment and artifact records are incomplete. Do not interpret a universal build as verified compatibility on every Mac or macOS 12.
+Windows x64 is the supported platform. **macOS is an alpha preview: additional testing is needed, and we welcome your feedback.** The Mac build contains Apple Silicon and Intel executable slices, but exact human-tested environment and artifact records are incomplete. Do not interpret a universal build as verified compatibility on every Mac or macOS 12.
 
 Report installation and workflow issues through GitHub Issues. Include OS, hardware, slicer versions, and app version, but do not attach credentials, account identifiers, or live profile contents.
 
