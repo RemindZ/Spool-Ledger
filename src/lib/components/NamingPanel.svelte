@@ -1,22 +1,14 @@
 <script lang="ts">
   import {
     ArrowDown,
+    ArrowRight,
     ArrowUp,
-    Braces,
-    ChevronRight,
     Plus,
     Save,
     Trash2,
-    WandSparkles,
   } from "@lucide/svelte";
   import TemplateComposer from "./TemplateComposer.svelte";
   import ModalDialog from "./ModalDialog.svelte";
-  import {
-    TEMPLATE_TOKENS,
-    insertToken,
-    parseTemplate,
-    serializeTemplate,
-  } from "../template-composer";
   import type {
     NamePreview,
     NamingPreset,
@@ -33,6 +25,7 @@
     amsRules = [],
     savedPresets = [],
     preview,
+    previewSubject = null,
     error = null,
     outputs = { slicing_presets: true, custom_filaments: true },
     onTemplatesChanged,
@@ -48,6 +41,7 @@
     amsRules?: NamingRule[];
     savedPresets?: NamingPreset[];
     preview: NamePreview | null;
+    previewSubject?: string | null;
     error?: string | null;
     outputs?: OutputSelection;
     onTemplatesChanged: (preset: string, ams: string) => void;
@@ -84,21 +78,6 @@
       template === "preset" ? value : presetTemplate,
       template === "ams" ? value : amsTemplate,
     );
-  }
-
-  function insertVariable(token: string) {
-    const value = activeTemplate === "preset" ? presetTemplate : amsTemplate;
-    const parsed = parseTemplate(value);
-    updateTemplate(
-      activeTemplate,
-      serializeTemplate(insertToken(parsed, token, parsed.tokens.length)),
-    );
-  }
-
-  function beginVariableDrag(event: DragEvent, token: string) {
-    if (!event.dataTransfer) return;
-    event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData("application/x-bfm-template-token", token);
   }
 
   function addRule() {
@@ -167,8 +146,8 @@
 
 <section class="panel naming-panel" aria-labelledby="naming-heading">
   <header class="panel-heading">
-    <div>
-      <p class="section-kicker">Output identity</p>
+    <div class="panel-title">
+      <span class="panel-step" aria-hidden="true">2</span>
       <h2 id="naming-heading">Naming</h2>
     </div>
     <div class="panel-heading-actions">
@@ -180,11 +159,19 @@
       >
         <span class="help-glyph" aria-hidden="true">?</span>
       </button>
-      <Braces size={18} aria-hidden="true" />
     </div>
   </header>
 
   <div class="template-fields">
+    {#if preview}
+      {#if previewSubject}
+        <p class="preview-subject">Preview for <code>{previewSubject}</code></p>
+      {/if}
+    {:else}
+      <p class="preview-subject">
+        Select a source and nozzle to preview names.
+      </p>
+    {/if}
     <TemplateComposer
       label="Bambu slicing preset template"
       value={presetTemplate}
@@ -193,6 +180,16 @@
       onActivate={() => (activeTemplate = "preset")}
       onChange={(value) => updateTemplate("preset", value)}
     />
+    {#if preview}
+      <div class="template-output" aria-live="polite">
+        <ArrowRight size={14} aria-hidden="true" />
+        <strong>{preview.preset_name}</strong>
+        {#if preview.preset_before !== preview.preset_name}
+          <small><span>Before rules</span> <s>{preview.preset_before}</s></small
+          >
+        {/if}
+      </div>
+    {/if}
     <TemplateComposer
       label="AMS custom filament template"
       value={amsTemplate}
@@ -201,62 +198,15 @@
       onActivate={() => (activeTemplate = "ams")}
       onChange={(value) => updateTemplate("ams", value)}
     />
-  </div>
-
-  <div
-    class="template-variable-picker"
-    role="group"
-    aria-label="Template variables"
-  >
-    <span class="field-label">Variables</span>
-    <div class="template-variable-list">
-      {#each TEMPLATE_TOKENS as token (token.value)}
-        <button
-          type="button"
-          class="template-variable"
-          draggable={!(activeTemplate === "ams" && token.scope === "slicing")}
-          disabled={activeTemplate === "ams" && token.scope === "slicing"}
-          aria-label={`Insert ${token.label} into active template`}
-          title={activeTemplate === "ams" && token.scope === "slicing"
-            ? `${token.label} is available only for slicing preset names.`
-            : `Insert ${token.value}`}
-          onclick={() => insertVariable(token.value)}
-          ondragstart={(event) => beginVariableDrag(event, token.value)}
-        >
-          {token.value}
-        </button>
-      {/each}
-    </div>
-    <small>
-      Insert into the active template. Drag variables onto a composer or use its
-      token controls to reorder.
-    </small>
-  </div>
-
-  <div class="name-preview" aria-live="polite">
-    <div class="preview-route">
-      <span class="route-node source"><WandSparkles size={14} /> Source</span>
-      <ChevronRight size={14} />
-      <span class="route-node output">Output</span>
-    </div>
-    <dl>
-      <div>
-        <dt>Slicing preset</dt>
-        {#if preview && preview.preset_before !== preview.preset_name}
-          <small class="preview-before">{preview.preset_before}</small>
+    {#if preview}
+      <div class="template-output" aria-live="polite">
+        <ArrowRight size={14} aria-hidden="true" />
+        <strong>{preview.ams_name}</strong>
+        {#if preview.ams_before !== preview.ams_name}
+          <small><span>Before rules</span> <s>{preview.ams_before}</s></small>
         {/if}
-        <dd>
-          {preview?.preset_name ?? "Select a source and target to preview"}
-        </dd>
       </div>
-      <div>
-        <dt>AMS identity</dt>
-        {#if preview && preview.ams_before !== preview.ams_name}
-          <small class="preview-before">{preview.ams_before}</small>
-        {/if}
-        <dd>{preview?.ams_name ?? "Select a source and target to preview"}</dd>
-      </div>
-    </dl>
+    {/if}
   </div>
 
   {#if error}<p class="field-error" role="alert">{error}</p>{/if}

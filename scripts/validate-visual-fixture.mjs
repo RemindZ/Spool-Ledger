@@ -25,6 +25,7 @@ const states = [
   "manager",
   "dependency",
   "artwork-fallback",
+  "update",
 ];
 
 if (!fixture.includes("onOpenSupport={async () => {}}")) {

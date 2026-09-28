@@ -77,9 +77,7 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(naming).toContain(
       '<span class="help-glyph" aria-hidden="true">?</span>',
     );
-    expect(css).toMatch(
-      /\.workflow-steps li span\s*\{[^}]*border-radius:\s*5px/s,
-    );
+    expect(css).toMatch(/\.panel-step\s*\{[^}]*border-radius:\s*5px/s);
     expect(css).toContain(".source-rail::before");
     expect(css).toContain(".destination-rail::before");
     expect(css).toMatch(

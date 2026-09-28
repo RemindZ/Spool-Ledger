@@ -36,8 +36,8 @@
 
 <section class="panel target-panel" aria-labelledby="target-heading">
   <header class="panel-heading">
-    <div>
-      <p class="section-kicker">Destination</p>
+    <div class="panel-title">
+      <span class="panel-step" aria-hidden="true">3</span>
       <h2 id="target-heading">Printers & nozzles</h2>
     </div>
     <div class="target-heading-actions">
@@ -65,9 +65,12 @@
           <PrinterArtwork {catalogId} {printer} />
           <span class="printer-title">
             <strong>{printer.name}</strong>
-            <small
-              >{printer.code} · {printer.extruder_variants.length} drive modes</small
-            >
+            <small>
+              {printer.code} · {printer.extruder_variants.length}
+              {printer.extruder_variants.length === 1
+                ? "drive mode"
+                : "drive modes"}
+            </small>
           </span>
           <ChevronDown class="summary-chevron" size={16} />
         </summary>

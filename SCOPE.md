@@ -70,6 +70,8 @@ The application stages and validates all output, creates a timestamped backup, r
 
 No telemetry, hosted service, Bambu credentials, profile uploads, or direct undocumented Bambu cloud API calls are used. The UI shows exactly what will be read, created, updated, skipped, or rejected.
 
+The only network request the application makes is one unauthenticated read of the public GitHub release list for `RemindZ/Spool-Ledger` at launch. It sends no profile or account data. When a newer `vX.Y.Z` release exists, a notice offers **Update**, which opens the release page in the default browser, **Not now**, and **Skip this version**, which suppresses only that tag. Drafts are ignored; pre-releases are offered only to 0.x builds.
+
 ## 4. Non-goals for v1
 
 - Editing or calibrating filament parameters.
@@ -82,7 +84,7 @@ No telemetry, hosted service, Bambu credentials, profile uploads, or direct undo
 - Modifying files inside the Bambu Studio or OrcaSlicer installation directories.
 - Migrating Bambu factory presets that are already available in Bambu Studio.
 - Mobile or browser-only builds.
-- Automatic application updates.
+- Automatic application updates. The update notice only links to a release page; the application never downloads or installs a new version.
 - Claiming custom-printer hardware compatibility that cannot be verified locally.
 
 ## 5. Terminology

@@ -96,6 +96,33 @@ const plan: MigrationPlan = {
 };
 
 describe("workflow panels", () => {
+  it("counts printer drive modes with correct singular and plural copy", () => {
+    const [h2c] = printers;
+    render(TargetPanel, {
+      props: {
+        catalogId: "targets:1",
+        printers: [
+          h2c,
+          {
+            ...h2c,
+            id: "official:P1S",
+            name: "Bambu Lab P1S",
+            code: "P1S",
+            extruder_variants: ["Direct Drive Standard"],
+          },
+        ],
+        enabledPrinterIds: new Set(["official:H2C", "official:P1S"]),
+        selectedNozzles: {},
+        onManage: vi.fn(),
+        onNozzleToggle: vi.fn(),
+        onSelectAll: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText("H2C · 2 drive modes")).toBeInTheDocument();
+    expect(screen.getByText("P1S · 1 drive mode")).toBeInTheDocument();
+  });
+
   it("renders enabled official targets only and opens printer management", async () => {
     const onManage = vi.fn();
     render(TargetPanel, {
@@ -241,7 +268,7 @@ describe("workflow panels", () => {
     ).toBeInTheDocument();
   });
 
-  it("inserts every real naming token into the active scoped composer", async () => {
+  it("inserts every real naming token from each field's own variable menu", async () => {
     const onTemplatesChanged = vi.fn();
     render(NamingPanel, {
       props: {
@@ -259,32 +286,84 @@ describe("workflow panels", () => {
     });
 
     expect(
-      screen.getByRole("button", {
-        name: "Insert Source name into active template",
-      }),
+      screen.queryByRole("button", { name: "Insert Source name" }),
+    ).not.toBeInTheDocument();
+    const presetMenu = screen.getByRole("button", {
+      name: "Insert variable into Bambu slicing preset template",
+    });
+    expect(presetMenu).toHaveAttribute("aria-expanded", "false");
+    await fireEvent.click(presetMenu);
+    expect(presetMenu).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "Insert Source name" }),
     ).toBeInTheDocument();
     await fireEvent.click(
-      screen.getByRole("button", {
-        name: "Insert Family into active template",
-      }),
+      screen.getByRole("button", { name: "Insert Family" }),
     );
     expect(onTemplatesChanged).toHaveBeenLastCalledWith(
       "{clean_name}{family}",
       "{vendor} @{printer_code}",
     );
+    expect(presetMenu).toHaveAttribute("aria-expanded", "false");
 
-    await fireEvent.focusIn(
-      screen.getByLabelText("AMS custom filament template text 1"),
-    );
+    const amsMenu = screen.getByRole("button", {
+      name: "Insert variable into AMS custom filament template",
+    });
+    await fireEvent.click(amsMenu);
     expect(
-      screen.getByRole("button", {
-        name: "Insert Printer code into active template",
-      }),
+      screen.getByRole("button", { name: "Insert Printer code" }),
     ).toBeDisabled();
+    await fireEvent.keyDown(
+      screen.getByRole("button", { name: "Insert Vendor" }),
+      { key: "Escape" },
+    );
+    expect(amsMenu).toHaveAttribute("aria-expanded", "false");
     expect(
       screen.getByText(
         "Remove slicing-only @, {printer_code} from this AMS template.",
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows each template's engine output with its preview subject", () => {
+    render(NamingPanel, {
+      props: {
+        presetTemplate: "{clean_name} - {printer_code}",
+        amsTemplate: "{vendor} {material} {clean_name}",
+        previewSubject: "Panchroma PLA Satin on Bambu Lab H2C 0.4 mm",
+        preview: {
+          preset_before: "Panchroma Satin - H2C",
+          preset_name: "Panchroma Satin - H2C",
+          ams_before: "Polymaker PLA Panchroma Satin",
+          ams_name: "Panchroma Satin",
+        },
+        onTemplatesChanged: vi.fn(),
+      },
+    });
+
+    expect(
+      screen.getByText("Panchroma PLA Satin on Bambu Lab H2C 0.4 mm"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Panchroma Satin - H2C")).toBeInTheDocument();
+    expect(screen.getByText("Panchroma Satin")).toBeInTheDocument();
+    expect(screen.getAllByText("Before rules")).toHaveLength(1);
+    expect(
+      screen.getByText("Polymaker PLA Panchroma Satin"),
+    ).toBeInTheDocument();
+  });
+
+  it("asks for a source and nozzle before showing name output", () => {
+    render(NamingPanel, {
+      props: {
+        presetTemplate: "{clean_name}",
+        amsTemplate: "{vendor}",
+        preview: null,
+        onTemplatesChanged: vi.fn(),
+      },
+    });
+
+    expect(
+      screen.getByText("Select a source and nozzle to preview names."),
     ).toBeInTheDocument();
   });
 
@@ -346,49 +425,106 @@ describe("workflow panels", () => {
     expect(screen.getByText("Skipped")).toBeInTheDocument();
   });
 
-  it("uses singular grammar for one committed local file", () => {
-    render(ResultSummary, {
-      props: {
-        result: {
-          run_id: "run-1",
-          plan_id: "plan-1",
-          committed_files: 1,
-          created_files: 1,
-          updated_files: 0,
-          deleted_files: 0,
-          skipped_operations: 0,
-          backup_sha256: "backup-sha256",
-          backup_file_count: 1,
-          receipt_path: "receipt.json",
+  it("marks skipped and blocked operations distinctly from local evidence", () => {
+    const mixedPlan: MigrationPlan = {
+      ...plan,
+      operations: [
+        { ...plan.operations[0], action: "create", conflict: null },
+        {
+          ...plan.operations[0],
+          id: "op-skip",
+          action: "skip",
+          conflict: null,
+          ams_name: "Skipped filament",
         },
+        {
+          ...plan.operations[0],
+          id: "op-block",
+          action: "block",
+          ams_name: "Blocked filament",
+        },
+        {
+          ...plan.operations[0],
+          id: "op-wait",
+          action: "create",
+          conflict: null,
+          ams_name: "Waiting filament",
+        },
+      ],
+    };
+    render(RunProgress, {
+      props: {
+        plan: mixedPlan,
+        progress: {
+          "op-1": { evidence: "created_local", state: "created_local" },
+        },
+        running: true,
       },
     });
-    expect(screen.getByText("1 local file committed")).toBeInTheDocument();
-    expect(screen.getByText("1 backup file")).toBeInTheDocument();
+
+    const status = (label: string) =>
+      screen.getByText(label).closest(".operation-progress-row");
+    expect(status("Created locally")).toHaveAttribute(
+      "data-status",
+      "evidence",
+    );
+    expect(status("Skipped")).toHaveAttribute("data-status", "skip");
+    expect(status("Blocked")).toHaveAttribute("data-status", "block");
+    expect(status("Waiting")).toHaveAttribute("data-status", "waiting");
+  });
+
+  it("states the evidence rule above the four separate evidence levels", () => {
+    render(RunProgress, {
+      props: { plan, progress: {}, running: false },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Evidence" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Each level is recorded separately. Only you can confirm AMS.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  const localResult = {
+    run_id: "run-1",
+    plan_id: "plan-1",
+    committed_files: 1,
+    created_files: 1,
+    updated_files: 0,
+    deleted_files: 0,
+    skipped_operations: 0,
+    backup_sha256: "backup-sha256",
+    backup_file_count: 1,
+    receipt_path: "receipt.json",
+  };
+
+  it("keeps run forensics in collapsed details behind a one-line count", () => {
+    const { container } = render(ResultSummary, {
+      props: { result: localResult },
+    });
+
+    expect(
+      screen.getByText(
+        "1 created · 0 updated · 0 deleted · 0 skipped · 1 backup file",
+      ),
+    ).toBeInTheDocument();
+    expect(container.querySelector("details.run-details")).not.toHaveAttribute(
+      "open",
+    );
     expect(screen.getByText("backup-sha256")).toBeInTheDocument();
+    expect(screen.getByText("receipt.json")).toBeInTheDocument();
     expect(screen.queryByText(/checksum-verified/i)).not.toBeInTheDocument();
   });
 
-  it("offers optional support without affecting the completed run", async () => {
+  it("offers optional support after a completed run", async () => {
     const onOpenSupport = vi
       .fn<() => Promise<void>>()
       .mockRejectedValue(new Error("browser unavailable"));
     render(ResultSummary, {
-      props: {
-        result: {
-          run_id: "run-1",
-          plan_id: "plan-1",
-          committed_files: 1,
-          created_files: 1,
-          updated_files: 0,
-          deleted_files: 0,
-          skipped_operations: 0,
-          backup_sha256: "backup-sha256",
-          backup_file_count: 1,
-          receipt_path: "receipt.json",
-        },
-        onOpenSupport,
-      },
+      props: { result: localResult, onOpenSupport },
     });
 
     expect(
@@ -401,34 +537,29 @@ describe("workflow panels", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not open the support page",
     );
-    expect(screen.getByText("1 local file committed")).toBeInTheDocument();
   });
 
-  it("links to restore without owning restore mutations", async () => {
-    const onOpenRestore = vi.fn();
-    render(ResultSummary, {
-      props: {
-        result: {
-          run_id: "run-1",
-          plan_id: "plan-1",
-          committed_files: 3,
-          created_files: 2,
-          updated_files: 1,
-          deleted_files: 0,
-          skipped_operations: 1,
-          backup_sha256: "backup-sha256",
-          backup_file_count: 3,
-          receipt_path: "receipt.json",
+  it("does not ask for support while synchronization is unresolved", () => {
+    const cases = [
+      {
+        synchronization: {
+          timed_out: true,
+          highest_evidence: "created_local" as const,
+          observations: [],
         },
-        onOpenRestore,
       },
-    });
-
-    expect(screen.getByText("3 local files committed")).toBeInTheDocument();
-    expect(screen.queryByText("Ready to restore")).not.toBeInTheDocument();
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Open journal-owned restore" }),
-    );
-    expect(onOpenRestore).toHaveBeenCalledOnce();
+      { syncError: "Bambu Studio did not start" },
+      { syncing: true },
+    ];
+    for (const props of cases) {
+      const { unmount } = render(ResultSummary, {
+        props: { result: localResult, ...props },
+      });
+      expect(screen.queryByText(/Buy me a coffee/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Retry synchronization" }),
+      ).not.toBeInTheDocument();
+      unmount();
+    }
   });
 });

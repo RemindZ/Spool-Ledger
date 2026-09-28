@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { GripVertical, X } from "@lucide/svelte";
+  import { GripVertical, Plus, X } from "@lucide/svelte";
   import {
     TEMPLATE_TOKENS,
     insertToken,
@@ -31,7 +31,45 @@
 
   const parsed = $derived(parseTemplate(value));
   const violations = $derived(scopeViolations(value, scope));
+  const uid = $props.id();
+  const menuId = `${uid}-variables`;
   let composer: HTMLDivElement;
+  let field: HTMLDivElement;
+  let menuButton: HTMLButtonElement;
+  let menuOpen = $state(false);
+
+  $effect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!field.contains(event.target as Node)) menuOpen = false;
+    };
+    window.addEventListener("pointerdown", closeOutside);
+    return () => window.removeEventListener("pointerdown", closeOutside);
+  });
+
+  function outOfScope(tokenScope: TemplateScope | "all") {
+    return scope === "ams" && tokenScope === "slicing";
+  }
+
+  function insertVariable(token: string) {
+    const index = parsed.tokens.length;
+    menuOpen = false;
+    emit(insertToken(parsed, token, index));
+    void focusToken(index);
+  }
+
+  function beginVariableDrag(event: DragEvent, token: string) {
+    if (!event.dataTransfer) return;
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-bfm-template-token", token);
+  }
+
+  function handleMenuKeydown(event: KeyboardEvent) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    menuOpen = false;
+    menuButton?.focus();
+  }
 
   function emit(next: ParsedTemplate) {
     onActivate();
@@ -123,8 +161,21 @@
   }
 </script>
 
-<div class="template-composer-field">
-  <span class="field-label">{label}</span>
+<div class="template-composer-field" bind:this={field}>
+  <div class="template-composer-head">
+    <span class="field-label">{label}</span>
+    <button
+      bind:this={menuButton}
+      type="button"
+      class="template-add"
+      aria-label={`Insert variable into ${label}`}
+      aria-expanded={menuOpen}
+      aria-controls={menuId}
+      onclick={() => (menuOpen = !menuOpen)}
+    >
+      <Plus size={12} aria-hidden="true" /> Variable
+    </button>
+  </div>
   <div
     bind:this={composer}
     class:active
@@ -187,6 +238,32 @@
         changeText(parsed.tokens.length, event.currentTarget.value)}
     />
   </div>
+  {#if menuOpen}
+    <div
+      id={menuId}
+      class="template-variable-menu"
+      role="group"
+      aria-label={`${label} variables`}
+    >
+      {#each TEMPLATE_TOKENS as token (token.value)}
+        <button
+          type="button"
+          class="template-variable"
+          draggable={!outOfScope(token.scope)}
+          disabled={outOfScope(token.scope)}
+          aria-label={`Insert ${token.label}`}
+          title={outOfScope(token.scope)
+            ? `${token.label} is available only for slicing preset names.`
+            : `Insert ${token.value}`}
+          onclick={() => insertVariable(token.value)}
+          onkeydown={handleMenuKeydown}
+          ondragstart={(event) => beginVariableDrag(event, token.value)}
+        >
+          {token.value}
+        </button>
+      {/each}
+    </div>
+  {/if}
   {#if violations.length > 0}
     <p class="field-error" role="alert">
       Remove slicing-only {violations.join(", ")} from this AMS template.

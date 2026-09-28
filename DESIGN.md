@@ -35,6 +35,17 @@ Use these current tokens as the starting contract. Refine their relationships if
 
 Bambu green is the action and destination color. Orca orange is deliberately restrained and should never compete with the primary action. Semantic danger and warning colors remain independent of both brands.
 
+Brand hues are fills and marks. Text and control boundaries use contrast tokens that keep each hue's meaning and meet WCAG AA on every panel surface. `src/lib/__tests__/contrast-tokens.test.ts` enforces these pairings for both themes.
+
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--text-faint` | `oklch(50% 0.02 162)` | `#94A79C` | Kickers, table headers, helper text (4.5:1) |
+| `--orca-ink` | `oklch(51% 0.145 47)` | `#F08A4E` | Orca source text (4.5:1) |
+| `--action` / `--on-action` | `oklch(50% 0.145 148)` / white | `#10BD52` / `#0D1410` | Primary action fill and label (4.5:1) |
+| `--on-danger` | white | `#0D1410` | Label on danger fill (4.5:1) |
+| `--control-border` | `oklch(60% 0.02 160)` | `#648070` | Input, select, and checkbox boundaries (3:1) |
+| `--focus-ring` | Bambu green | `#10BD52` | Solid 2 px focus outline (3:1) |
+
 ### Typography
 
 Use native desktop typography so the Tauri application feels installed rather than web-hosted:
@@ -68,13 +79,12 @@ The motif is structural, not decorative. Rounded-square profile tiles, open spoo
 
 ### Persistent top bar
 
-Show:
+The chrome is two rows. The work area starts below them, with no intro card or separate stepper.
 
-- Spool Ledger as the dominant product name with Bambu Filament Migrator as the permanent descriptor.
-- Detected OrcaSlicer and Bambu Studio state.
-- Selected eligible Bambu account.
-- Light, dark, and system theme control.
-- A compact safety indicator stating that plans are local and reviewed before writes.
+1. The dark window bar, which is also the drag region: Spool Ledger as the dominant product name with Bambu Filament Migrator as the permanent descriptor, detected OrcaSlicer and Bambu Studio state as status dots, and an appearance button whose menu holds the light, dark, and system theme control.
+2. The toolbar: workspace tabs, the selected eligible Bambu account, a compact **Local only** indicator, source folders, and refresh.
+
+The sentence "Nothing is written until you review and commit the plan." sits beside the Build migration plan action, where it matters. The platform is not labelled, because Windows is the only release platform.
 
 Do not expose unrestricted file paths as editable inputs. Discovery and account selection operate through backend-approved opaque IDs.
 
@@ -90,6 +100,8 @@ Desktop uses three rails:
 └────────────────────┴──────────────────────────┴────────────────────┘
                       Spool Ledger registration route
 ```
+
+Each rail header carries its step number (1 Filaments, 2 Naming, 3 Printers & nozzles) as a square registration tile. The numbers replace a separate setup stepper.
 
 Below the rails, a full-width migration plan shows every output operation. Execution evidence and results replace or extend this lower area without causing the upper workspace to jump.
 
@@ -136,6 +148,8 @@ Support these real facets:
 - Selected-only state.
 - Text search.
 
+Present the facets as a filter bar inside the filament panel: search, dropdown chips for Source application, Manufacturer, Material, and Status, and a **More filters** menu for origin, family, variant, and compatible printer. A chip shows how many values it has selected. Selected-only and saved filter presets sit on the selection row beside Select visible. Active-filter chips below the bar remove one filter each.
+
 Selection must survive filtering. Show visible-selection counts separately from total-selection counts. Abstract inheritance bases and include fragments are never selectable.
 
 During the initial source catalog, keep the final routing bench dimensions stable and show a centered determinate loading state. It combines a restrained circular loading indicator with a progress bar and an exact **loaded of total** portable-preset count supplied by the catalog operation. The source, naming, and destination rails remain hidden and inert until cataloging completes. Announce completion once without narrating every progress increment.
@@ -165,6 +179,8 @@ Keep slicing and AMS naming visibly separate:
 - Optional source conditions.
 - Reusable naming presets.
 - Exact per-row overrides from the plan.
+
+Each template shows its backend-rendered output directly below it, and the panel names the source and nozzle the preview uses. When naming rules change a name, the pre-rule value appears as **Before rules**. Template variables open from a per-field **Variable** menu, not an always-visible palette. Slicing-only variables are disabled in the AMS menu with their reason.
 
 Advanced rules should remain collapsed by default. Invalid regular expressions must block planning with a specific error. Do not hide transformed filenames or generated identities.
 
@@ -209,6 +225,14 @@ Safety rules:
 Do not use color alone. Every action needs text and an icon or shape.
 
 ## Execution and evidence
+
+The run view reads top-down as verdict, evidence, then detail:
+
+1. A status card states what happened in plain words, with the actions that resolve it beside it (Retry synchronization, Open journal-owned restore). Its segmented phase bar summarizes the steps, and **Show steps** opens the full list.
+2. The evidence panel keeps the four evidence levels as separate tiles above the per-operation rows. Skipped and blocked operations use their own icons and colors, never the success treatment.
+3. **Run details** keeps created, updated, deleted, skipped, and backup counts on one line. The plan ID, backup hash, and receipt path open on request.
+
+The support card appears only after a resolved run, never beside a timeout, stopped synchronization, or active monitoring.
 
 Local execution phases should be visually distinct and stable:
 
@@ -279,7 +303,7 @@ Every control below is required unless marked contextual. Each one must connect 
 
 | Control | UI form | Required behavior |
 | --- | --- | --- |
-| Theme | Three-option segmented control: System, Light, Dark | Changes the document theme immediately and persists locally. |
+| Theme | Three-option segmented control (System, Light, Dark) in the window bar appearance menu | Changes the document theme immediately and persists locally. |
 | Retry discovery | Button, shown after discovery failure | Re-runs installation, manifest, account, and executable discovery. |
 | Destination account | Select/menu of discovered accounts | Allows only backend-classified eligible accounts to become write targets. Ineligible accounts remain visible with a reason but cannot be selected. |
 | Source roots | Backend-discovered source labels, not editable path fields | Catalogs selected approved Orca/Bambu system and user roots through opaque IDs. |

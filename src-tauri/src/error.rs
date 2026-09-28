@@ -27,6 +27,8 @@ pub enum AppError {
     BambuStillRunning,
     #[error("operation was cancelled")]
     Cancelled,
+    #[error("update check failed: {0}")]
+    UpdateCheck(String),
 }
 
 impl AppError {

@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowRight, CheckCircle2, Route } from "@lucide/svelte";
+  import { ArrowRight, Lock, Route } from "@lucide/svelte";
   import AppChrome from "../../src/lib/components/AppChrome.svelte";
-  import ExecutionPhases from "../../src/lib/components/ExecutionPhases.svelte";
-  import FilterPanel from "../../src/lib/components/FilterPanel.svelte";
+  import RunStatus from "../../src/lib/components/RunStatus.svelte";
+  import FilterBar from "../../src/lib/components/FilterBar.svelte";
+  import FilterTools from "../../src/lib/components/FilterTools.svelte";
   import FirstRunSetup from "../../src/lib/components/FirstRunSetup.svelte";
   import NamingPanel from "../../src/lib/components/NamingPanel.svelte";
   import PlanDependencyDialog from "../../src/lib/components/PlanDependencyDialog.svelte";
@@ -14,6 +15,7 @@
   import RunProgress from "../../src/lib/components/RunProgress.svelte";
   import SourceTable from "../../src/lib/components/SourceTable.svelte";
   import TargetPanel from "../../src/lib/components/TargetPanel.svelte";
+  import UpdateNotice from "../../src/lib/components/UpdateNotice.svelte";
   import { createInitialState, sourceFacets } from "../../src/lib/state";
   import type {
     CatalogSource,
@@ -22,6 +24,7 @@
     MigrationPlan,
     PlanOperation,
     PrinterTarget,
+    SyncResult,
   } from "../../src/lib/types";
 
   const states = [
@@ -42,6 +45,7 @@
     ["manager", "15 Printer manager"],
     ["dependency", "16 Target dependency"],
     ["artwork-fallback", "17 Artwork fallback"],
+    ["update", "18 Update available"],
   ] as const;
   const query = new URLSearchParams(location.search);
   let state = $state(query.get("state") ?? "ready");
@@ -223,6 +227,22 @@
       "Generic PET-CF @BBL H2C is not installed for Bambu Lab H2C 0.4 mm",
   };
   const facets = sourceFacets(sources);
+  const fixtureSynchronization: SyncResult | null = [
+    "timeout",
+    "cloud",
+    "ams",
+  ].includes(state)
+    ? {
+        timed_out: state === "timeout",
+        highest_evidence:
+          state === "timeout"
+            ? "created_local"
+            : state === "ams"
+              ? "ams_verified"
+              : "cloud_id_assigned",
+        observations: [],
+      }
+    : null;
 
   function chooseState(next: string) {
     const url = new URL(location.href);
@@ -346,47 +366,33 @@
             eligible for local migration.
           </p>
         </div>
-      {:else if ["ready", "naming", "narrow", "manager", "dependency", "artwork-fallback"].includes(state)}
-        <div class="workspace-view">
-          <header class="setup-intro">
-            <div>
-              <p class="section-kicker">Migration setup</p>
-              <h2>Prepare migration</h2>
-              <p>
-                Route resolved source profiles through naming into official
-                Bambu printer targets.
-              </p>
-            </div>
-            <ol class="workflow-steps" aria-label="Migration setup steps">
-              <li class="ready"><span>1</span>Sources</li>
-              <li class="ready"><span>2</span>Select</li>
-              <li class="ready"><span>3</span>Name</li>
-              <li class="ready"><span>4</span>Hardware</li>
-            </ol>
-            <p class="discovery-status">
-              <CheckCircle2 size={15} /> Profile inventory ready
-            </p>
-          </header>
+      {:else if ["ready", "naming", "narrow", "manager", "dependency", "artwork-fallback", "update"].includes(state)}
+        <div class="workspace-view setup-view">
           <div class="routing-bench" aria-label="Filament migration route">
             <article class="route-rail source-rail">
-              <div class="source-rail-body">
-                <FilterPanel
-                  filters={initial.filters}
-                  {facets}
-                  onFiltersChanged={() => {}}
-                  onReset={() => {}}
-                />
-                <div class="source-workbench">
-                  <SourceTable
-                    {sources}
-                    selectedIds={selectedSources}
-                    totalCount={sources.length}
-                    onToggle={() => {}}
-                    onSelectVisible={() => {}}
-                    onClearSelection={() => {}}
+              <SourceTable
+                {sources}
+                selectedIds={selectedSources}
+                totalCount={sources.length}
+                onToggle={() => {}}
+                onSelectVisible={() => {}}
+                onClearSelection={() => {}}
+              >
+                {#snippet filters()}
+                  <FilterBar
+                    filters={initial.filters}
+                    {facets}
+                    onFiltersChanged={() => {}}
+                    onReset={() => {}}
                   />
-                </div>
-              </div>
+                {/snippet}
+                {#snippet tools()}
+                  <FilterTools
+                    filters={initial.filters}
+                    onFiltersChanged={() => {}}
+                  />
+                {/snippet}
+              </SourceTable>
             </article>
             <div class="route-thread" aria-hidden="true">
               <span></span><ArrowRight size={15} />
@@ -409,11 +415,15 @@
                     ]
                   : []}
                 preview={{
-                  preset_before: sources[0].name,
+                  preset_before: "Easy PLA Satin - H2C",
                   preset_name: "Easy PLA Satin - H2C",
-                  ams_before: sources[0].name,
-                  ams_name: "Fiberlogy PLA Easy PLA Satin",
+                  ams_before: "Fiberlogy PLA Easy PLA Satin",
+                  ams_name:
+                    state === "naming"
+                      ? "Easy PLA Satin"
+                      : "Fiberlogy PLA Easy PLA Satin",
                 }}
+                previewSubject={`${sources[0].name} on Bambu Lab H2C 0.4 mm`}
                 onTemplatesChanged={() => {}}
               />
             </article>
@@ -443,6 +453,10 @@
                 ><strong>2</strong> nozzles</span
               ><span><strong>2</strong> outputs</span>
             </div>
+            <p class="setup-safety">
+              <Lock size={13} /> Nothing is written until you review and commit the
+              plan.
+            </p>
             <span class="plan-readiness ready">Ready to build</span><button
               class="primary-button"
               type="button">Build migration plan</button
@@ -471,7 +485,7 @@
           </div>
         </div>
       {:else if state === "restore"}
-        <div class="workspace-view">
+        <div class="workspace-view document-view">
           <RestorePanel
             {result}
             preview={restorePreview}
@@ -480,19 +494,23 @@
           />
         </div>
       {:else}
-        <div class="workspace-view">
-          <ExecutionPhases
+        <div class="workspace-view document-view">
+          <RunStatus
+            result={state === "execution" ? null : result}
+            synchronization={fixtureSynchronization}
+            syncing={state === "monitoring"}
             localPhase={state === "execution" ? "backing_up" : "finished"}
             syncPhase={state === "monitoring"
               ? "monitoring"
               : ["timeout", "cloud", "ams"].includes(state)
                 ? "finished"
                 : null}
+            onRetrySync={() => {}}
+            onOpenRestore={() => {}}
           />
           <RunProgress
             {plan}
             running={state === "execution" || state === "monitoring"}
-            localPhase={state === "execution" ? "backing_up" : null}
             cancellable={state === "monitoring"}
             progress={Object.fromEntries(
               plan.operations
@@ -524,23 +542,27 @@
           />
           {#if ["timeout", "cloud", "ams"].includes(state)}<ResultSummary
               {result}
-              synchronization={{
-                timed_out: state === "timeout",
-                highest_evidence:
-                  state === "timeout"
-                    ? "created_local"
-                    : state === "ams"
-                      ? "ams_verified"
-                      : "cloud_id_assigned",
-                observations: [],
-              }}
-              onRetrySync={() => {}}
-              onOpenRestore={() => {}}
+              synchronization={fixtureSynchronization}
               onOpenSupport={async () => {}}
             />{/if}
         </div>
       {/if}
     </main>
+
+    {#if state === "update"}
+      <UpdateNotice
+        update={{
+          status: "available",
+          current: "0.9.0",
+          latest: "0.10.0",
+          tag: "v0.10.0",
+          url: "https://github.com/RemindZ/Spool-Ledger/releases/tag/v0.10.0",
+        }}
+        onUpdate={() => {}}
+        onDismiss={() => {}}
+        onSkip={() => {}}
+      />
+    {/if}
 
     {#if state === "manager"}
       <PrinterManagerDialog

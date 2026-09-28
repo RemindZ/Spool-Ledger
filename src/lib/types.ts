@@ -321,3 +321,14 @@ export interface RollbackOutcome {
   external_conflicts: number;
   failed: number;
 }
+
+export interface AvailableUpdate {
+  status: "available";
+  current: string;
+  latest: string;
+  tag: string;
+  url: string;
+}
+
+export type UpdateCheck =
+  AvailableUpdate | { status: "current"; current: string };

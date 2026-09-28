@@ -14,6 +14,7 @@ pub mod resolver;
 pub mod sync;
 pub mod targets;
 pub mod transaction;
+pub mod updates;
 pub mod writer;
 
 pub use error::AppError;
@@ -45,6 +46,8 @@ pub fn run() {
             commands::record_ams_verification,
             commands::restore_preview,
             commands::restore_owned,
+            commands::check_for_update,
+            commands::open_release_page,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Bambu Filament Migrator");

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import {
     AlertTriangle,
     CheckCircle2,
@@ -14,6 +15,8 @@
     onToggle,
     onSelectVisible,
     onClearSelection,
+    filters,
+    tools,
   }: {
     sources: CatalogSource[];
     selectedIds: Set<string>;
@@ -21,6 +24,8 @@
     onToggle: (sourceId: string) => void;
     onSelectVisible: (selected: boolean) => void;
     onClearSelection: () => void;
+    filters?: Snippet;
+    tools?: Snippet;
   } = $props();
 
   const statusLabels: Record<MigrationStatus, string> = {
@@ -38,14 +43,19 @@
 
 <section class="source-panel" aria-labelledby="sources-heading">
   <header class="source-heading">
-    <div>
-      <p class="section-kicker">Source inventory</p>
+    <div class="panel-title">
+      <span class="panel-step" aria-hidden="true">1</span>
       <h2 id="sources-heading">Filament profiles</h2>
     </div>
     <div class="source-counts">
       <strong>{sources.length} of {totalCount} profiles</strong>
       <span>{selectedIds.size} selected</span>
     </div>
+  </header>
+
+  {#if filters}<div class="source-filters">{@render filters()}</div>{/if}
+
+  <div class="source-selectrow">
     <div class="source-actions">
       <button
         class="text-button"
@@ -63,7 +73,8 @@
           onclick={onClearSelection}>Clear all</button
         >{/if}
     </div>
-  </header>
+    {#if tools}{@render tools()}{/if}
+  </div>
 
   <div class="source-table-wrap">
     <table class="source-table">

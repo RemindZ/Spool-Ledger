@@ -2749,6 +2749,23 @@ fn command_error(error: AppError) -> String {
 }
 
 #[tauri::command]
+pub async fn check_for_update() -> Result<crate::updates::UpdateCheck, String> {
+    tauri::async_runtime::spawn_blocking(|| crate::updates::check(env!("CARGO_PKG_VERSION")))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn open_release_page(app: AppHandle, tag: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = crate::updates::release_page(&tag).map_err(command_error)?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn discover(state: State<'_, AppState>) -> Result<DiscoveryResponse, String> {
     Ok(state
         .service

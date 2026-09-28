@@ -3,16 +3,17 @@
   import {
     AlertOctagon,
     ArrowRight,
-    CheckCircle2,
+    Lock,
     LoaderCircle,
     Route,
   } from "@lucide/svelte";
   import { api } from "./lib/api";
   import { scopeViolations } from "./lib/template-composer";
   import AppChrome from "./lib/components/AppChrome.svelte";
-  import ExecutionPhases from "./lib/components/ExecutionPhases.svelte";
+  import RunStatus from "./lib/components/RunStatus.svelte";
   import type { WorkspaceView } from "./lib/components/WorkspaceTabs.svelte";
-  import FilterPanel from "./lib/components/FilterPanel.svelte";
+  import FilterBar from "./lib/components/FilterBar.svelte";
+  import FilterTools from "./lib/components/FilterTools.svelte";
   import FirstRunSetup from "./lib/components/FirstRunSetup.svelte";
   import NamingPanel from "./lib/components/NamingPanel.svelte";
   import ModalDialog from "./lib/components/ModalDialog.svelte";
@@ -24,6 +25,8 @@
   import RunProgress from "./lib/components/RunProgress.svelte";
   import SourceTable from "./lib/components/SourceTable.svelte";
   import TargetPanel from "./lib/components/TargetPanel.svelte";
+  import UpdateNotice from "./lib/components/UpdateNotice.svelte";
+  import { rememberSkippedVersion, shouldNotifyUpdate } from "./lib/updates";
   import {
     activeFilterChips,
     appReducer,
@@ -49,6 +52,7 @@
     type Theme,
   } from "./lib/state";
   import type {
+    AvailableUpdate,
     BuildPlanRequest,
     BuildPlanResponse,
     CatalogProgressEvent,
@@ -92,6 +96,8 @@
   let pendingPlanRequest = $state<BuildPlanRequest | null>(null);
   let resolvingDependencies = $state(false);
   let printerManagerOpen = $state(false);
+  let availableUpdate = $state<AvailableUpdate | null>(null);
+  let updateError = $state<string | null>(null);
 
   const shownSources = $derived(visibleSources(appState));
   const facets = $derived(sourceFacets(appState.sources));
@@ -319,13 +325,7 @@
     persistFilterPresets(storage, savedFilterPresets);
   }
 
-  async function refreshPreview(
-    preset = appState.presetTemplate,
-    ams = appState.amsTemplate,
-    presetRules = appState.presetRules,
-    amsRules = appState.amsRules,
-  ) {
-    namePreviewError = null;
+  const previewInputs = $derived.by(() => {
     const source = appState.sources.find((item) =>
       appState.selectedSourceIds.has(item.id),
     );
@@ -335,10 +335,26 @@
     const nozzle = target
       ? [...(appState.selectedNozzles[target.id] ?? [])][0]
       : undefined;
-    if (!source || !target || !nozzle) {
+    return source && target && nozzle ? { source, target, nozzle } : null;
+  });
+  const previewSubject = $derived(
+    previewInputs
+      ? `${previewInputs.source.name} on ${previewInputs.target.name} ${previewInputs.nozzle} mm`
+      : null,
+  );
+
+  async function refreshPreview(
+    preset = appState.presetTemplate,
+    ams = appState.amsTemplate,
+    presetRules = appState.presetRules,
+    amsRules = appState.amsRules,
+  ) {
+    namePreviewError = null;
+    if (!previewInputs) {
       namePreview = null;
       return;
     }
+    const { source, target, nozzle } = previewInputs;
     try {
       const rows = await api.previewNames({
         preset_template: preset,
@@ -753,9 +769,42 @@
     dispatch({ type: "setup_completed", ...selection });
   }
 
+  async function checkForUpdate() {
+    try {
+      const update = await api.checkForUpdate();
+      if (
+        update.status === "available" &&
+        shouldNotifyUpdate(update, localStorage)
+      ) {
+        availableUpdate = update;
+      }
+    } catch (error) {
+      // An unreachable release list must never interrupt a migration.
+      console.warn("Update check failed:", errorMessage(error));
+    }
+  }
+
+  async function openAvailableRelease() {
+    if (!availableUpdate) return;
+    updateError = null;
+    try {
+      await api.openReleasePage(availableUpdate.tag);
+      availableUpdate = null;
+    } catch {
+      updateError = "Could not open the release page. Please try again.";
+    }
+  }
+
+  function skipAvailableRelease() {
+    if (!availableUpdate) return;
+    rememberSkippedVersion(localStorage, availableUpdate.tag);
+    availableUpdate = null;
+  }
+
   onMount(() => {
     applyTheme(appState.theme);
     void discover();
+    void checkForUpdate();
   });
 </script>
 
@@ -792,6 +841,16 @@
         alt="Spool Ledger · Bambu Filament Migrator"
       />
     </header>
+  {/if}
+
+  {#if availableUpdate && appState.setupComplete}
+    <UpdateNotice
+      update={availableUpdate}
+      error={updateError}
+      onUpdate={() => void openAvailableRelease()}
+      onDismiss={() => (availableUpdate = null)}
+      onSkip={skipAvailableRelease}
+    />
   {/if}
 
   {#if appState.error}
@@ -871,52 +930,32 @@
       {#if activeView === "setup"}
         <div
           id="setup-view"
-          class="workspace-view"
+          class="workspace-view setup-view"
           role="tabpanel"
           aria-labelledby="setup-tab"
           tabindex="-1"
         >
-          <header class="setup-intro">
-            <div>
-              <p class="section-kicker">Migration setup</p>
-              <h2>Prepare migration</h2>
-              <p>
-                Route resolved source profiles through naming into official
-                Bambu printer targets.
-              </p>
-            </div>
-            <ol class="workflow-steps" aria-label="Migration setup steps">
-              <li class:ready={appState.discovery !== null}>
-                <span>1</span>Sources
-              </li>
-              <li class:ready={appState.selectedSourceIds.size > 0}>
-                <span>2</span>Select
-              </li>
-              <li class:ready={namePreview !== null}><span>3</span>Name</li>
-              <li class:ready={nozzleRequests.length > 0}>
-                <span>4</span>Hardware
-              </li>
-            </ol>
-            <p class="discovery-status" role="status">
-              <CheckCircle2 size={15} /> Profile inventory ready
-            </p>
-          </header>
-
           <div class="routing-bench" aria-label="Filament migration route">
             <article class="route-rail source-rail">
-              <div class="source-rail-body">
-                <FilterPanel
-                  filters={appState.filters}
-                  {facets}
-                  savedPresets={savedFilterPresets}
-                  onFiltersChanged={changeFilters}
-                  onReset={() => changeFilters(resetFilters())}
-                  onSavePreset={saveFilterPreset}
-                  onLoadPreset={loadFilterPreset}
-                  onDeletePreset={deleteFilterPreset}
-                />
-
-                <div class="source-workbench">
+              <SourceTable
+                sources={shownSources}
+                selectedIds={appState.selectedSourceIds}
+                totalCount={appState.sources.length}
+                onToggle={(sourceId) => {
+                  dispatch({ type: "source_toggled", sourceId });
+                  void refreshPreview();
+                }}
+                onSelectVisible={(selected) =>
+                  dispatch({ type: "select_visible", selected })}
+                onClearSelection={() => dispatch({ type: "clear_selection" })}
+              >
+                {#snippet filters()}
+                  <FilterBar
+                    filters={appState.filters}
+                    {facets}
+                    onFiltersChanged={changeFilters}
+                    onReset={() => changeFilters(resetFilters())}
+                  />
                   {#if filterChips.length}
                     <div class="filter-chips" aria-label="Active filters">
                       {#each filterChips as chip (chip.id)}<button
@@ -926,21 +965,18 @@
                         >{/each}
                     </div>
                   {/if}
-                  <SourceTable
-                    sources={shownSources}
-                    selectedIds={appState.selectedSourceIds}
-                    totalCount={appState.sources.length}
-                    onToggle={(sourceId) => {
-                      dispatch({ type: "source_toggled", sourceId });
-                      void refreshPreview();
-                    }}
-                    onSelectVisible={(selected) =>
-                      dispatch({ type: "select_visible", selected })}
-                    onClearSelection={() =>
-                      dispatch({ type: "clear_selection" })}
+                {/snippet}
+                {#snippet tools()}
+                  <FilterTools
+                    filters={appState.filters}
+                    savedPresets={savedFilterPresets}
+                    onFiltersChanged={changeFilters}
+                    onSavePreset={saveFilterPreset}
+                    onLoadPreset={loadFilterPreset}
+                    onDeletePreset={deleteFilterPreset}
                   />
-                </div>
-              </div>
+                {/snippet}
+              </SourceTable>
             </article>
 
             <div class="route-thread" aria-hidden="true">
@@ -955,6 +991,7 @@
                 amsRules={appState.amsRules}
                 savedPresets={savedNamingPresets}
                 preview={namePreview}
+                {previewSubject}
                 error={namePreviewError}
                 outputs={appState.outputs}
                 onTemplatesChanged={changeTemplates}
@@ -1011,6 +1048,10 @@
                 ><strong>{outputCount}</strong> outputs</span
               >
             </div>
+            <p class="setup-safety">
+              <Lock size={13} /> Nothing is written until you review and commit the
+              plan.
+            </p>
             <span class:ready={hasInputs} class="plan-readiness">
               {amsScopeViolations.length > 0
                 ? "Fix the AMS template"
@@ -1072,17 +1113,23 @@
       {:else if activeView === "activity"}
         <div
           id="activity-view"
-          class="workspace-view"
+          class="workspace-view document-view"
           role="tabpanel"
           aria-labelledby="activity-tab"
           tabindex="-1"
         >
           {#if appState.plan && (appState.phase === "executing" || appState.result)}
-            <ExecutionPhases
+            <RunStatus
+              result={appState.result}
+              synchronization={appState.synchronization}
+              syncError={appState.syncError}
+              syncing={appState.phase === "synchronizing"}
               localPhase={appState.executionPhase}
               syncPhase={appState.syncPhase}
               syncExpected={!appState.result ||
                 appState.result.committed_files > 0}
+              onRetrySync={synchronizeRun}
+              onOpenRestore={previewRestore}
             />
           {/if}
 
@@ -1092,9 +1139,6 @@
               progress={appState.progress}
               running={appState.phase === "executing" ||
                 appState.phase === "synchronizing"}
-              localPhase={appState.phase === "executing"
-                ? appState.executionPhase
-                : null}
               cancellable={appState.phase === "synchronizing"}
               onCancel={cancelSynchronization}
               onVerify={verifyAms}
@@ -1107,8 +1151,6 @@
               synchronization={appState.synchronization}
               syncError={appState.syncError}
               syncing={appState.phase === "synchronizing"}
-              onRetrySync={synchronizeRun}
-              onOpenRestore={previewRestore}
               onOpenSupport={api.openSupportPage}
             />
           {:else if !(appState.plan && (appState.phase === "executing" || appState.phase === "synchronizing" || Object.keys(appState.progress).length))}
@@ -1123,7 +1165,7 @@
       {:else}
         <div
           id="restore-view"
-          class="workspace-view"
+          class="workspace-view document-view"
           role="tabpanel"
           aria-labelledby="restore-tab"
           tabindex="-1"
