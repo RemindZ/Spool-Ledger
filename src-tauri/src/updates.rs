@@ -84,20 +84,26 @@ pub fn select_update(current: &str, releases: &[GithubRelease]) -> Result<Update
     })
 }
 
-/// Reads the public release list. One unauthenticated request per call.
-pub fn check(current: &str) -> Result<UpdateCheck, AppError> {
-    let failed = |error: ureq::Error| AppError::UpdateCheck(error.to_string());
-    let body = ureq::get(RELEASES_API)
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", &format!("SpoolLedger/{current}"))
-        .config()
-        .timeout_global(Some(Duration::from_secs(10)))
+/// Reads the public release list over the operating system TLS stack.
+/// One unauthenticated request per call.
+pub async fn check(current: &str) -> Result<UpdateCheck, AppError> {
+    let failed = |error: reqwest::Error| AppError::UpdateCheck(error.to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(format!("SpoolLedger/{current}"))
+        .timeout(Duration::from_secs(10))
         .build()
-        .call()
+        .map_err(failed)?;
+    let body = client
+        .get(RELEASES_API)
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
         .map_err(failed)?
-        .body_mut()
-        .read_to_string()
+        .error_for_status()
+        .map_err(failed)?
+        .text()
+        .await
         .map_err(failed)?;
     let releases: Vec<GithubRelease> = serde_json::from_str(&body)
         .map_err(|error| AppError::UpdateCheck(format!("unexpected release list: {error}")))?;

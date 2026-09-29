@@ -108,7 +108,8 @@ fn release_pages_are_built_only_from_contract_tags() {
 #[test]
 #[ignore = "reads the public GitHub release list over the network"]
 fn live_release_list_offers_the_published_beta_to_an_older_build() {
-    let result = bambu_filament_migrator::updates::check("0.0.1").unwrap();
+    let result =
+        tauri::async_runtime::block_on(bambu_filament_migrator::updates::check("0.0.1")).unwrap();
     match result {
         UpdateCheck::Available { url, .. } => assert!(url.starts_with(RELEASE_PAGE_PREFIX)),
         other => panic!("expected an available update, got {other:?}"),
