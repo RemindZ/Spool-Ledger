@@ -397,8 +397,8 @@ jobs:
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             test "$(cat existing-draft)" = "true" || { echo "Refusing to modify a published release"; exit 1; }
           else
-            gh release create "$RELEASE_TAG" --draft --prerelease --verify-tag \
-              --title "Spool Ledger v$VERSION (unsigned beta)" \
+            gh release create "$RELEASE_TAG" --draft --verify-tag \
+              --title "Spool Ledger v$VERSION (unsigned)" \
               --notes-file generated-release-notes.md
           fi
 
@@ -419,7 +419,7 @@ jobs:
           mapfile -t remote_assets < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)
           diff -u <(printf '%s\n' "${expected_assets[@]}") <(printf '%s\n' "${remote_assets[@]}")
           require_draft
-          gh release edit "$RELEASE_TAG" --draft --prerelease \
-            --title "Spool Ledger v$VERSION (unsigned beta)" \
+          gh release edit "$RELEASE_TAG" --draft \
+            --title "Spool Ledger v$VERSION (unsigned)" \
             --notes-file generated-release-notes.md
           require_draft
