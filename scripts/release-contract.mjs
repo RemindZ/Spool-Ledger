@@ -23,6 +23,9 @@ const REQUIRED_PLATFORMS = new Map([
   ],
 ]);
 
+// Each macOS alpha preview tag needs its own explicit owner approval.
+const OWNER_APPROVED_MAC_ALPHA_TAGS = new Set(["v0.9.0", "v1.0.0"]);
+
 export function parseReleaseTag(tag) {
   const match = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(tag);
   if (!match) {
@@ -43,7 +46,7 @@ export function artifactNames(version) {
 export function validateReleaseMatrix(
   matrix,
   evidenceExists,
-  { requireEnabled = true, tag, prerelease = false } = {},
+  { requireEnabled = true, tag, alphaPreview = false } = {},
 ) {
   if (matrix?.version !== 1 || !Array.isArray(matrix.platforms)) {
     throw new Error("release matrix must use schema version 1");
@@ -91,16 +94,16 @@ export function validateReleaseMatrix(
     if (
       hasAlphaPreview &&
       (id !== "macos-universal" ||
-        row.alpha_preview_tag !== "v0.9.0" ||
+        !OWNER_APPROVED_MAC_ALPHA_TAGS.has(row.alpha_preview_tag) ||
         row.release_enabled ||
         !hasPending ||
         !row.pending.trim())
     ) {
       throw new Error(`${id} has an invalid alpha preview exception`);
     }
-    const alphaPreview =
-      hasAlphaPreview && tag === row.alpha_preview_tag && prerelease === true;
-    if (requireEnabled && !row.release_enabled && !alphaPreview) {
+    const alphaPreviewApplies =
+      hasAlphaPreview && tag === row.alpha_preview_tag && alphaPreview === true;
+    if (requireEnabled && !row.release_enabled && !alphaPreviewApplies) {
       throw new Error(`${id} is not release enabled`);
     }
     if (!row.unsigned) {
@@ -129,7 +132,7 @@ export function validateReleaseContract({
   versions,
   matrix,
   evidenceExists,
-  prerelease = false,
+  alphaPreview = false,
 }) {
   const version = parseReleaseTag(tag);
   const authorities = [
@@ -145,7 +148,7 @@ export function validateReleaseContract({
     }
   }
 
-  validateReleaseMatrix(matrix, evidenceExists, { tag, prerelease });
+  validateReleaseMatrix(matrix, evidenceExists, { tag, alphaPreview });
 
   return { version, artifacts: artifactNames(version), unsigned: true };
 }
@@ -162,7 +165,7 @@ function cargoPackageVersion(content) {
   return version;
 }
 
-export function loadReleaseContract(root, tag, { prerelease = false } = {}) {
+export function loadReleaseContract(root, tag, { alphaPreview = false } = {}) {
   const read = (path) => readFileSync(resolve(root, path), "utf8");
   const packageJson = JSON.parse(read("package.json"));
   const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
@@ -175,7 +178,7 @@ export function loadReleaseContract(root, tag, { prerelease = false } = {}) {
       tauriConfig: tauriConfig.version,
     },
     matrix,
-    prerelease,
+    alphaPreview,
     evidenceExists: (path) => existsSync(resolve(root, path)),
   });
 }
@@ -190,7 +193,7 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
   try {
     const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
     const result = loadReleaseContract(root, process.argv[tagIndex + 1], {
-      prerelease: process.argv.includes("--prerelease"),
+      alphaPreview: process.argv.includes("--alpha-preview"),
     });
     console.log(JSON.stringify(result));
   } catch (error) {

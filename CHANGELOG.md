@@ -21,6 +21,8 @@ First stable release for Windows x64.
 - The 11 execution steps collapse into one progress bar with **Show steps**.
 - The backup hash, receipt path, and plan ID moved into a collapsible **Run details** section.
 - The support card appears only after a successful run.
+- Releases are published as normal GitHub releases instead of pre-releases, so the newest release appears as Latest on the repository page.
+- macOS remains an unsigned, unnotarized alpha preview in this release.
 - Skipped and blocked operations on **Run & evidence** use their own icons and colors instead of the success style.
 
 ### Fixed

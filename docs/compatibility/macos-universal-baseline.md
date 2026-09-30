@@ -1,6 +1,6 @@
 # macOS universal compatibility baseline
 
-- **Release status:** v0.9.0 alpha preview only, not fully accepted
+- **Release status:** alpha preview in v0.9.0 and v1.0.0 only, not fully accepted
 - **Architecture:** universal (`arm64` and `x86_64`)
 - **Minimum target:** macOS 12.0, pending real-installation confirmation
 - **Signing:** unsigned initial-release artifact
@@ -9,7 +9,7 @@
 
 This row remains disabled for fully accepted releases in `release-matrix.json` until every acceptance item below has recorded evidence. A successful GitHub Actions build is not acceptance.
 
-The owner explicitly authorized distribution as a macOS alpha preview for the v0.9.0 prerelease despite unavailable detailed human acceptance records. `alpha_preview_tag` permits only that exact prerelease, not a stable release or a later version. macOS alpha preview: additional testing is needed, and we welcome your feedback. The universal executable contains both architectures; this does not establish installed acceptance on Intel Macs or on the minimum macOS version.
+The owner explicitly authorized distribution as a macOS alpha preview for v0.9.0 despite unavailable detailed human acceptance records, and on 2026-10-01 authorized the same alpha preview for v1.0.0. `alpha_preview_tag` permits only the one matching tag, and the release contract accepts only owner-approved tags. The authorization does not establish full Mac support or carry forward to a later version. macOS alpha preview: additional testing is needed, and we welcome your feedback. The universal executable contains both architectures; this does not establish installed acceptance on Intel Macs or on the minimum macOS version.
 
 ## Automated evidence
 

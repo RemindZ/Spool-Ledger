@@ -20,7 +20,7 @@ The acceptance workflow never runs on a pull request or push, cannot mutate a re
 - Remove each platform row's `pending` field and set `release_enabled` to `true` only after its evidence document is complete.
 - Keep Linux absent from the release matrix.
 
-For v0.9.0 only, the owner authorized macOS alpha preview distribution with incomplete detailed human acceptance records. Keep `release_enabled: false` and the pending evidence visible; `alpha_preview_tag: "v0.9.0"` permits distribution only when the contract receives `--prerelease`. This exception does not establish full Mac support, authorize a stable release, or carry forward to later versions. Release notes must identify the Mac alpha and request testing feedback.
+The owner authorized macOS alpha preview distribution with incomplete detailed human acceptance records for v0.9.0 and v1.0.0. Keep `release_enabled: false` and the pending evidence visible. `alpha_preview_tag` names the one tag the exception covers, the contract accepts only owner-approved tags, and it applies only when the contract receives `--alpha-preview`. A later version needs a new explicit owner approval. The exception does not establish full Mac support. Release notes must identify the Mac alpha and request testing feedback.
 
 ## 2. Prepare the version
 
@@ -41,14 +41,14 @@ npm run format:check
 npm run build
 npm run visual:check
 npm run release:check
-npm run release:contract -- --tag v0.9.0 --prerelease
+npm run release:contract -- --tag v1.0.0 --alpha-preview
 npm audit
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo test --manifest-path src-tauri/Cargo.toml --all-targets
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 ```
 
-Replace `v0.9.0` with the prepared version. A disabled platform without an applicable explicit preview exception, missing evidence file, unexpected platform, or version mismatch must fail before release work begins.
+Replace `v1.0.0` with the prepared version, and pass `--alpha-preview` only for an owner-approved macOS alpha tag. A disabled platform without an applicable explicit preview exception, missing evidence file, unexpected platform, or version mismatch must fail before release work begins.
 
 ## 3. Protect and tag the accepted commit
 
@@ -105,6 +105,8 @@ Review:
 - playable README video.
 
 Publishing the draft is a separate irreversible action and requires explicit approval for that release instance.
+
+Drafts are normal releases, not pre-releases, so publishing one makes it the repository Latest release. Leave **Set as the latest release** selected when publishing.
 
 ## Deferred signing
 

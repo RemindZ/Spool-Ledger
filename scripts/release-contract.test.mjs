@@ -161,41 +161,61 @@ describe("release contract", () => {
     ).toThrow(/unexpected release platform.*linux-x64/i);
   });
 
-  it("allows only the owner-approved v0.9.0 Mac alpha prerelease", () => {
+  it("allows the Mac alpha only for owner-approved tags that opt in", () => {
     const alpha = structuredClone(matrix);
     alpha.platforms[1].release_enabled = false;
     alpha.platforms[1].pending =
       "Exact human acceptance environment and artifact";
-    alpha.platforms[1].alpha_preview_tag = "v0.9.0";
+    alpha.platforms[1].alpha_preview_tag = "v1.0.0";
+    const release = (version) => ({
+      packageJson: version,
+      cargoToml: version,
+      tauriConfig: version,
+    });
     const candidate = {
-      tag: "v0.9.0",
-      versions: {
-        packageJson: "0.9.0",
-        cargoToml: "0.9.0",
-        tauriConfig: "0.9.0",
-      },
+      tag: "v1.0.0",
+      versions: release("1.0.0"),
       matrix: alpha,
       evidenceExists,
-      prerelease: true,
+      alphaPreview: true,
     };
-    expect(validateReleaseContract(candidate).version).toBe("0.9.0");
+    expect(validateReleaseContract(candidate).version).toBe("1.0.0");
     expect(() =>
-      validateReleaseContract({ ...candidate, prerelease: false }),
+      validateReleaseContract({ ...candidate, alphaPreview: false }),
     ).toThrow(/not release enabled/i);
     expect(() =>
       validateReleaseContract({
         ...candidate,
-        tag: "v0.9.1",
-        versions: {
-          packageJson: "0.9.1",
-          cargoToml: "0.9.1",
-          tauriConfig: "0.9.1",
-        },
+        tag: "v1.0.1",
+        versions: release("1.0.1"),
       }),
     ).toThrow(/not release enabled/i);
+
+    const earlier = structuredClone(alpha);
+    earlier.platforms[1].alpha_preview_tag = "v0.9.0";
+    expect(
+      validateReleaseContract({
+        ...candidate,
+        tag: "v0.9.0",
+        versions: release("0.9.0"),
+        matrix: earlier,
+      }).version,
+    ).toBe("0.9.0");
+
+    const unapproved = structuredClone(alpha);
+    unapproved.platforms[1].alpha_preview_tag = "v1.0.1";
+    expect(() =>
+      validateReleaseContract({
+        ...candidate,
+        tag: "v1.0.1",
+        versions: release("1.0.1"),
+        matrix: unapproved,
+      }),
+    ).toThrow(/alpha preview/i);
+
     const windows = structuredClone(alpha);
     windows.platforms[0].release_enabled = false;
-    windows.platforms[0].alpha_preview_tag = "v0.9.0";
+    windows.platforms[0].alpha_preview_tag = "v1.0.0";
     expect(() =>
       validateReleaseContract({ ...candidate, matrix: windows }),
     ).toThrow(/alpha preview/i);

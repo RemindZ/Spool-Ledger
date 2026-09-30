@@ -73,6 +73,10 @@ describe("release workflow policy", () => {
     // GitHub never assigns to a pre-release.
     expect(workflow).not.toMatch(/gh release (create|edit)[^\n]*--prerelease/);
     expect(workflow).not.toContain("unsigned beta");
+    expect(workflow).not.toMatch(/release:contract[^\n]*--prerelease/);
+    expect(workflow).toContain(
+      'release:contract -- --tag "$RELEASE_TAG" --alpha-preview',
+    );
     expect(workflow).toContain('--title "Spool Ledger v$VERSION (unsigned)"');
     expect(workflow).toContain("--draft");
     expect(workflow).toContain("--verify-tag");
