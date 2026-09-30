@@ -419,7 +419,7 @@ jobs:
           mapfile -t remote_assets < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)
           diff -u <(printf '%s\n' "${expected_assets[@]}") <(printf '%s\n' "${remote_assets[@]}")
           require_draft
-          gh release edit "$RELEASE_TAG" --draft \
+          gh release edit "$RELEASE_TAG" --draft --prerelease=false \
             --title "Spool Ledger v$VERSION (unsigned)" \
             --notes-file generated-release-notes.md
           require_draft
