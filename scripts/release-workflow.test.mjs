@@ -67,8 +67,21 @@ describe("release workflow policy", () => {
   it("creates draft releases and never publishes automatically", () => {
     const workflow = read(".github/workflows/release.yml");
     expect(workflow).toContain("gh release create");
-    expect(workflow).toMatch(/gh release create[^\n]*--draft --prerelease/);
-    expect(workflow).toMatch(/gh release edit[^\n]*--draft --prerelease/);
+    expect(workflow).toMatch(/gh release create[^\n]*--draft --verify-tag/);
+    expect(workflow).toMatch(/gh release edit[^\n]*--draft/);
+    // Published drafts must become the repository's Latest release, which
+    // GitHub never assigns to a pre-release.
+    expect(workflow).not.toMatch(/gh release create[^\n]*--prerelease/);
+    // A reused draft from the old beta workflow keeps its flag unless the
+    // edit clears it explicitly.
+    expect(workflow).toMatch(/gh release edit[^\n]*--draft --prerelease=false/);
+    expect(workflow).not.toMatch(/gh release edit[^\n]*--prerelease(?!=false)/);
+    expect(workflow).not.toContain("unsigned beta");
+    expect(workflow).not.toMatch(/release:contract[^\n]*--prerelease/);
+    expect(workflow).toContain(
+      'release:contract -- --tag "$RELEASE_TAG" --alpha-preview',
+    );
+    expect(workflow).toContain('--title "Spool Ledger v$VERSION (unsigned)"');
     expect(workflow).toContain("--draft");
     expect(workflow).toContain("--verify-tag");
     expect(workflow).not.toMatch(

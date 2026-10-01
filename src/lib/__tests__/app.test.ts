@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   recordAmsVerification: vi.fn(),
   restorePreview: vi.fn(),
   restoreOwned: vi.fn(),
+  checkForUpdate: vi.fn(),
+  openReleasePage: vi.fn(),
 }));
 
 vi.mock("../api", () => ({ api: mocks }));
@@ -194,6 +196,11 @@ beforeEach(() => {
     },
   );
   mocks.cancelRun.mockResolvedValue(undefined);
+  mocks.checkForUpdate.mockResolvedValue({
+    status: "current",
+    current: "0.9.0",
+  });
+  mocks.openReleasePage.mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -207,7 +214,7 @@ describe("application workflow", () => {
       await screen.findByRole("heading", { name: "Set your migration route" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Prepare migration" }),
+      screen.queryByRole("heading", { name: "Filament profiles" }),
     ).not.toBeInTheDocument();
 
     await fireEvent.click(screen.getByLabelText("Enable Bambu Lab H2C"));
@@ -216,7 +223,7 @@ describe("application workflow", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Prepare migration" }),
+      await screen.findByRole("heading", { name: "Filament profiles" }),
     ).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("bfm.workspace")!)).toMatchObject({
       version: 2,
@@ -283,15 +290,100 @@ describe("application workflow", () => {
     expect(await screen.findByText(source.name)).toBeInTheDocument();
   });
 
+  it("notifies about a newer release and remembers a skipped version", async () => {
+    mocks.checkForUpdate.mockResolvedValue({
+      status: "available",
+      current: "0.9.0",
+      latest: "0.10.0",
+      tag: "v0.10.0",
+      url: "https://github.com/RemindZ/Spool-Ledger/releases/tag/v0.10.0",
+    });
+    const first = render(App);
+    expect(
+      await screen.findByText(
+        "Spool Ledger 0.10.0 is available. You have 0.9.0.",
+      ),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Skip this version" }),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+    first.unmount();
+
+    render(App);
+    await screen.findByText(source.name);
+    await waitFor(() => expect(mocks.checkForUpdate).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("heading", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the release page for update and hides the notice for not now", async () => {
+    mocks.checkForUpdate.mockResolvedValue({
+      status: "available",
+      current: "0.9.0",
+      latest: "0.10.0",
+      tag: "v0.10.0",
+      url: "https://github.com/RemindZ/Spool-Ledger/releases/tag/v0.10.0",
+    });
+    const first = render(App);
+    await fireEvent.click(
+      await screen.findByRole("button", { name: "Update" }),
+    );
+    expect(mocks.openReleasePage).toHaveBeenCalledWith("v0.10.0");
+    expect(
+      screen.queryByRole("heading", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+    first.unmount();
+
+    render(App);
+    await fireEvent.click(
+      await screen.findByRole("button", { name: "Not now" }),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Update available" }),
+    ).not.toBeInTheDocument();
+    expect(localStorage.getItem("bfm.update.skipped")).toBeNull();
+  });
+
+  it("filters the source table from the bar inside the filament panel", async () => {
+    render(App);
+    await screen.findByText(source.name);
+
+    const panel = screen
+      .getByRole("heading", { name: "Filament profiles" })
+      .closest("section")!;
+    await fireEvent.input(
+      within(panel).getByLabelText("Search source profiles"),
+      { target: { value: "no such filament" } },
+    );
+    expect(
+      await screen.findByText("No profiles match these filters"),
+    ).toBeInTheDocument();
+    const chip = within(screen.getByLabelText("Active filters")).getByRole(
+      "button",
+      { name: /Search: no such filament/ },
+    );
+    await fireEvent.click(chip);
+    expect(await screen.findByText(source.name)).toBeInTheDocument();
+  });
+
   it("orders the real setup route and reports derived setup counts", async () => {
     render(App);
     await screen.findByText(source.name);
 
     expect(
-      screen.getByRole("heading", { name: "Prepare migration" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Prepare migration" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByLabelText("Filament migration route"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nothing is written until you review and commit the plan.",
+      ),
     ).toBeInTheDocument();
     const sourceHeading = screen.getByRole("heading", {
       name: "Filament profiles",
@@ -399,7 +491,7 @@ describe("application workflow", () => {
       within(confirmation).getByRole("button", { name: "Commit migration" }),
     );
     expect(
-      await screen.findByText("3 local files committed"),
+      await screen.findByText(/3 local files committed/),
     ).toBeInTheDocument();
     expect(mocks.executePlan).toHaveBeenCalledWith(
       "plan-1",

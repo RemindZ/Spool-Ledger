@@ -94,11 +94,11 @@ System, light, and dark modes use the same migration workflow.
 
 | Platform       | Status                | Notes                               |
 | -------------- | --------------------- | ----------------------------------- |
-| Windows 11 x64 | Public beta           | Unsigned Windows installers and app |
+| Windows 11 x64 | Stable (v1.0.0)       | Unsigned Windows installers and app |
 | macOS          | Alpha preview         | Universal build. Needs more testing |
 | Linux          | Not release-supported | No Linux release is available       |
 
-The v0.9.0 public beta includes unsigned Windows x64 packages and an unsigned, unnotarized macOS alpha preview. **macOS needs more testing, and we welcome your feedback.**
+Spool Ledger v1.0.0 is the first stable Windows x64 release, with unsigned packages. macOS remains an unsigned, unnotarized alpha preview. **macOS needs more testing, and we welcome your feedback.**
 
 See [the release process](docs/release/RELEASING.md) for packaging and verification details.
 
@@ -217,8 +217,8 @@ npm run tauri build -- --no-bundle
 
 The resulting unsigned artifacts are:
 
-- NSIS installer: `src-tauri/target/release/bundle/nsis/Spool Ledger_0.9.0_x64-setup.exe`
-- MSI installer: `src-tauri/target/release/bundle/msi/Spool Ledger_0.9.0_x64_en-US.msi`
+- NSIS installer: `src-tauri/target/release/bundle/nsis/Spool Ledger_1.0.0_x64-setup.exe`
+- MSI installer: `src-tauri/target/release/bundle/msi/Spool Ledger_1.0.0_x64_en-US.msi`
 - Standalone executable: `src-tauri/target/release/bambu-filament-migrator.exe`
 - Checksum manifest: `src-tauri/target/release/bundle/SHA256SUMS.txt`
 

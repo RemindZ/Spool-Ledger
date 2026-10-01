@@ -19,6 +19,22 @@ Unknown Orca fields block cross-application output. They are never silently drop
 
 This evidence applies only to these two reviewed fields. Neighboring or newly discovered keys remain fail-closed until they are characterized independently.
 
+## Characterized OrcaSlicer 2.4 filament fields
+
+OrcaSlicer 2.4 saves user custom filament presets fully flattened, so every Orca filament option appears in the source file. The following 35 keys are classified as `target_machine`:
+
+`activate_chamber_temp_control`, `adaptive_pressure_advance`, `adaptive_pressure_advance_bridges`, `adaptive_pressure_advance_model`, `adaptive_pressure_advance_overhangs`, `chamber_temperature`, `dont_slow_down_outer_wall`, `filament_cooling_final_speed`, `filament_cooling_initial_speed`, `filament_cooling_moves`, `filament_ironing_flow`, `filament_ironing_inset`, `filament_ironing_spacing`, `filament_ironing_speed`, `filament_loading_speed`, `filament_loading_speed_start`, `filament_multitool_ramming`, `filament_multitool_ramming_flow`, `filament_multitool_ramming_volume`, `filament_ramming_parameters`, `filament_retract_lift_above`, `filament_retract_lift_below`, `filament_retract_lift_enforce`, `filament_shrinkage_compensation_z`, `filament_stamping_distance`, `filament_stamping_loading_speed`, `filament_toolchange_delay`, `filament_unloading_speed`, `filament_unloading_speed_start`, `idle_temperature`, `internal_bridge_fan_speed`, `pellet_flow_coefficient`, `support_material_interface_fan_speed`, `textured_cool_plate_temp`, `textured_cool_plate_temp_initial_layer`.
+
+Evidence:
+
+- Every key is in the OrcaSlicer filament-preset option list in [`Preset.cpp`](https://github.com/OrcaSlicer/OrcaSlicer/blob/08f086daf317c657e86c8292cc34ea14c6322527/src/libslic3r/Preset.cpp).
+- No key appears anywhere in Bambu Studio [`Preset.cpp`](https://github.com/bambulab/BambuStudio/blob/da8b44ee34dd349f2ae0df3f1cbae366df482354/src/libslic3r/Preset.cpp).
+- No key appears in the installed Bambu Studio or Bambu Studio Beta system profile roots.
+
+Bambu Studio has no destination for these values, so the writer keeps the resolved Bambu target, which never contains them. Resolver and writer regressions verify the classification and that none of the keys reach staged Bambu output.
+
+`chamber_temperature` is not mapped to Bambu `chamber_temperatures`. In OrcaSlicer the value only takes effect when `activate_chamber_temp_control` is on, while Bambu applies `chamber_temperatures` directly. Copying an inactive Orca value could enable chamber heating the user never enabled, so the Bambu target value is kept. A gated mapping needs its own characterization and machine-safety review.
+
 ## Current mapped vectors
 
 - `filament_flow_ratio`

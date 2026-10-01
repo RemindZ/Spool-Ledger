@@ -282,6 +282,54 @@ fn current_bambu_h2c_fields_have_explicit_target_policies() {
 }
 
 #[test]
+fn orca_2_4_only_filament_fields_keep_the_bambu_target_value() {
+    let policy = FieldPolicyTable::bundled().unwrap();
+    for field in [
+        "activate_chamber_temp_control",
+        "adaptive_pressure_advance",
+        "adaptive_pressure_advance_bridges",
+        "adaptive_pressure_advance_model",
+        "adaptive_pressure_advance_overhangs",
+        "chamber_temperature",
+        "dont_slow_down_outer_wall",
+        "filament_cooling_final_speed",
+        "filament_cooling_initial_speed",
+        "filament_cooling_moves",
+        "filament_ironing_flow",
+        "filament_ironing_inset",
+        "filament_ironing_spacing",
+        "filament_ironing_speed",
+        "filament_loading_speed",
+        "filament_loading_speed_start",
+        "filament_multitool_ramming",
+        "filament_multitool_ramming_flow",
+        "filament_multitool_ramming_volume",
+        "filament_ramming_parameters",
+        "filament_retract_lift_above",
+        "filament_retract_lift_below",
+        "filament_retract_lift_enforce",
+        "filament_shrinkage_compensation_z",
+        "filament_stamping_distance",
+        "filament_stamping_loading_speed",
+        "filament_toolchange_delay",
+        "filament_unloading_speed",
+        "filament_unloading_speed_start",
+        "idle_temperature",
+        "internal_bridge_fan_speed",
+        "pellet_flow_coefficient",
+        "support_material_interface_fan_speed",
+        "textured_cool_plate_temp",
+        "textured_cool_plate_temp_initial_layer",
+    ] {
+        assert_eq!(
+            policy.classify(field),
+            Some(FieldClass::TargetMachine),
+            "{field}"
+        );
+    }
+}
+
+#[test]
 fn field_policy_blocks_unknown_cross_application_fields() {
     let policy = FieldPolicyTable::bundled().unwrap();
     assert_eq!(

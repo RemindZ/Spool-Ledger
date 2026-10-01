@@ -412,6 +412,142 @@ fn characterized_fan_fields_survive_cross_application_transfer() {
 }
 
 #[test]
+fn orca_2_4_only_fields_do_not_cross_into_bambu_profiles() {
+    let orca_only = [
+        ("activate_chamber_temp_control", "0"),
+        ("adaptive_pressure_advance", "0"),
+        ("adaptive_pressure_advance_bridges", "0"),
+        ("adaptive_pressure_advance_model", "0,0,0\n0,0,0"),
+        ("adaptive_pressure_advance_overhangs", "0"),
+        ("chamber_temperature", "60"),
+        ("dont_slow_down_outer_wall", "0"),
+        ("filament_cooling_final_speed", "3.4"),
+        ("filament_cooling_initial_speed", "2.2"),
+        ("filament_cooling_moves", "4"),
+        ("filament_ironing_flow", "nil"),
+        ("filament_ironing_inset", "nil"),
+        ("filament_ironing_spacing", "nil"),
+        ("filament_ironing_speed", "nil"),
+        ("filament_loading_speed", "28"),
+        ("filament_loading_speed_start", "3"),
+        ("filament_multitool_ramming", "0"),
+        ("filament_multitool_ramming_flow", "10"),
+        ("filament_multitool_ramming_volume", "10"),
+        (
+            "filament_ramming_parameters",
+            "120 100 6.6 6.8| 0.05 6.6 0.45 6.8",
+        ),
+        ("filament_retract_lift_above", "nil"),
+        ("filament_retract_lift_below", "nil"),
+        ("filament_retract_lift_enforce", "nil"),
+        ("filament_shrinkage_compensation_z", "100%"),
+        ("filament_stamping_distance", "0"),
+        ("filament_stamping_loading_speed", "0"),
+        ("filament_toolchange_delay", "0"),
+        ("filament_unloading_speed", "90"),
+        ("filament_unloading_speed_start", "100"),
+        ("idle_temperature", "0"),
+        ("internal_bridge_fan_speed", "-1"),
+        ("pellet_flow_coefficient", "0.4157"),
+        ("support_material_interface_fan_speed", "-1"),
+        ("textured_cool_plate_temp", "40"),
+        ("textured_cool_plate_temp_initial_layer", "40"),
+    ];
+    let mut profile = serde_json::json!({
+        "type": "filament",
+        "name": "Orca 2.4 ASA",
+        "instantiation": "true",
+        "filament_vendor": ["Fiberlogy"],
+        "filament_type": ["ASA"],
+        "nozzle_temperature": ["255"]
+    });
+    for (key, value) in orca_only {
+        profile[key] = serde_json::json!([value]);
+    }
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("Orca 2.4 ASA.json"),
+        serde_json::to_vec_pretty(&profile).unwrap(),
+    )
+    .unwrap();
+    let sources =
+        ProfileCatalog::load_roots(&[CatalogRoot::system(root.path(), SourceApp::OrcaSlicer)])
+            .unwrap();
+    let (_, targets) = catalogs();
+    let effective = sources.resolve_name("Orca 2.4 ASA").unwrap();
+    let migration = MigrationRequest {
+        sources: vec![MigrationSource {
+            id: ProfileId::new("Orca 2.4 ASA"),
+            name: "Orca 2.4 ASA".to_owned(),
+            vendor: "Fiberlogy".to_owned(),
+            material: "ASA".to_owned(),
+            family: "Orca 2.4".to_owned(),
+            variant: String::new(),
+            source_app: SourceApp::OrcaSlicer,
+            source_kind: SourceKind::FactorySystem,
+            compatible_printers: BTreeSet::new(),
+            migration_status: MigrationStatus::New,
+            source_precondition_fingerprint: effective_settings_fingerprint(&effective).unwrap(),
+            existing_filament_id: None,
+        }],
+        targets: vec![TargetSelection {
+            printer_id: "official:H2C".to_owned(),
+            printer_name: "Bambu Lab H2C".to_owned(),
+            printer_code: "H2C".to_owned(),
+            nozzle: "0.4".to_owned(),
+            printer_preset_name: "Bambu Lab H2C 0.4 nozzle".to_owned(),
+            custom_unverified: false,
+        }],
+        preset_template: "{clean_name} - {printer_code}".to_owned(),
+        ams_template: "{vendor} {material} {clean_name}".to_owned(),
+        user_id: "0000000000".to_owned(),
+    };
+    let plan = Planner::build(&migration, &DestinationIndex::default()).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let stage = temp.path().join("stage");
+
+    Writer::stage(
+        &plan,
+        &context_for(&sources, &targets, "Orca 2.4 ASA"),
+        &stage,
+    )
+    .unwrap();
+
+    let mut staged = Vec::new();
+    for entry in walk(&stage) {
+        if entry
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            staged.push(read_json(&entry));
+        }
+    }
+    assert!(!staged.is_empty());
+    for output in &staged {
+        for (key, _) in orca_only {
+            assert!(output.get(key).is_none(), "{key} crossed into Bambu output");
+        }
+        assert!(
+            output.get("chamber_temperatures").is_none(),
+            "inactive Orca chamber temperature must not become a Bambu chamber target"
+        );
+    }
+}
+
+fn walk(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            files.extend(walk(&path));
+        } else {
+            files.push(path);
+        }
+    }
+    files
+}
+
+#[test]
 fn generated_path_components_cannot_escape_the_staging_tree() {
     let (sources, targets) = catalogs();
     let mut plan =

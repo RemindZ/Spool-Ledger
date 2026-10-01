@@ -335,8 +335,8 @@
     border-radius: 50%;
     font-size: 0.75rem;
     font-weight: 800;
-    color: var(--surface-raised);
-    background: var(--accent);
+    color: var(--on-action);
+    background: var(--action);
   }
 
   .setup-sections section > header > div {

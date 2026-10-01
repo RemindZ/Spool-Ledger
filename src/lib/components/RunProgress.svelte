@@ -1,19 +1,20 @@
 <script lang="ts">
   import {
+    AlertOctagon,
     CheckCircle2,
     CircleDashed,
     Cloud,
     HardDrive,
+    MinusCircle,
     ShieldCheck,
   } from "@lucide/svelte";
-  import type { ExecutionPhase, MigrationPlan } from "../types";
+  import type { MigrationPlan } from "../types";
   import type { OperationProgress } from "../state";
 
   let {
     plan,
     progress,
     running,
-    localPhase = null,
     cancellable = false,
     onCancel = () => {},
     onVerify = () => {},
@@ -21,7 +22,6 @@
     plan: MigrationPlan;
     progress: Record<string, OperationProgress>;
     running: boolean;
-    localPhase?: ExecutionPhase | null;
     cancellable?: boolean;
     onCancel?: () => void;
     onVerify?: (operationIds: string[]) => void;
@@ -33,17 +33,6 @@
     cloud_id_assigned: "Cloud ID assigned",
     ams_verified: "AMS verified",
   } as const;
-
-  const localPhaseLabels: Record<ExecutionPhase, string> = {
-    validating: "Validating frozen plan",
-    closing_bambu: "Closing Bambu Studio",
-    staging: "Staging files",
-    validating_output: "Output validation complete",
-    backing_up: "Creating ZIP backup",
-    committing: "Committing journaled files",
-    writing_receipt: "Writing journal and receipt",
-    finished: "Local commit finished",
-  };
 
   const trackedOperations = $derived(
     plan.operations.filter(
@@ -85,13 +74,8 @@
 
 <section class="run-progress panel" aria-labelledby="progress-heading">
   <header class="panel-heading">
-    <div>
-      <p class="section-kicker">Evidence ledger</p>
-      <h2 id="progress-heading">Migration progress</h2>
-    </div>
-    {#if running}<span class="live-indicator" aria-live="polite"
-        ><i></i> {localPhase ? localPhaseLabels[localPhase] : "Running"}</span
-      >{/if}
+    <h2 id="progress-heading">Evidence</h2>
+    <p>Each level is recorded separately. Only you can confirm AMS.</p>
   </header>
 
   <ol class="evidence-steps">
@@ -131,12 +115,19 @@
   <div class="operation-progress-list">
     {#each plan.operations as operation (operation.id)}
       {@const item = progress[operation.id]}
-      {@const terminal =
-        operation.action === "skip" || operation.action === "block"}
-      <div class="operation-progress-row">
-        {#if item || terminal}<CheckCircle2 size={15} />{:else}<CircleDashed
+      {@const status = item
+        ? "evidence"
+        : operation.action === "skip" || operation.action === "block"
+          ? operation.action
+          : "waiting"}
+      <div class="operation-progress-row" data-status={status}>
+        {#if status === "evidence"}<CheckCircle2
             size={15}
-          />{/if}
+          />{:else if status === "skip"}<MinusCircle
+            size={15}
+          />{:else if status === "block"}<AlertOctagon
+            size={15}
+          />{:else}<CircleDashed size={15} />{/if}
         <span
           ><strong>{operation.ams_name}</strong><small
             >{operation.printer_preset_name}</small
@@ -145,9 +136,9 @@
         <span class="evidence-label"
           >{item
             ? evidenceLabels[item.evidence]
-            : operation.action === "skip"
+            : status === "skip"
               ? "Skipped"
-              : operation.action === "block"
+              : status === "block"
                 ? "Blocked"
                 : "Waiting"}</span
         >

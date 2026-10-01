@@ -10,6 +10,21 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ExecutionPhases from "../components/ExecutionPhases.svelte";
 import RestorePanel from "../components/RestorePanel.svelte";
+import RunStatus from "../components/RunStatus.svelte";
+import type { LocalRunResult } from "../types";
+
+const runResult = (committed: number): LocalRunResult => ({
+  run_id: "run-1",
+  plan_id: "plan-1",
+  committed_files: committed,
+  created_files: committed,
+  updated_files: 0,
+  deleted_files: 0,
+  skipped_operations: 0,
+  backup_sha256: "backup-sha256",
+  backup_file_count: committed,
+  receipt_path: "receipt.json",
+});
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function showModal() {
@@ -22,7 +37,157 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+describe("RunStatus", () => {
+  it("leads with a timeout verdict and the actions that resolve it", async () => {
+    const onRetrySync = vi.fn();
+    const onOpenRestore = vi.fn();
+    render(RunStatus, {
+      props: {
+        result: runResult(6),
+        synchronization: {
+          timed_out: true,
+          highest_evidence: "created_local",
+          observations: [],
+        },
+        localPhase: "finished",
+        syncPhase: "finished",
+        onRetrySync,
+        onOpenRestore,
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Synchronization timed out" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "6 local files remain committed. The highest observed evidence is created locally.",
+      ),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Retry synchronization" }),
+    );
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Open journal-owned restore" }),
+    );
+    expect(onRetrySync).toHaveBeenCalledOnce();
+    expect(onOpenRestore).toHaveBeenCalledOnce();
+  });
+
+  it("reports a stopped synchronization with its diagnostic", () => {
+    render(RunStatus, {
+      props: {
+        result: runResult(1),
+        syncError: "Bambu Studio did not start",
+        localPhase: "finished",
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Synchronization stopped" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1 local file remains committed. Bambu Studio did not start",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Retry synchronization" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows synchronization in progress without offering a retry", () => {
+    render(RunStatus, {
+      props: {
+        result: runResult(2),
+        syncing: true,
+        localPhase: "finished",
+        syncPhase: "monitoring",
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Synchronizing with Bambu Studio" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry synchronization" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps AMS verification operator-only after observed synchronization", () => {
+    render(RunStatus, {
+      props: {
+        result: runResult(2),
+        synchronization: {
+          timed_out: false,
+          highest_evidence: "cloud_id_assigned",
+          observations: [],
+        },
+        localPhase: "finished",
+        syncPhase: "finished",
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Synchronization observed" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "2 local files committed. The highest observed evidence is cloud ID assigned. AMS verification remains operator-only.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("uses singular grammar for one committed local file", () => {
+    render(RunStatus, {
+      props: { result: runResult(1), localPhase: "finished" },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "1 local file committed" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("run-1")).toBeInTheDocument();
+  });
+
+  it("describes a running local transaction without actions", () => {
+    render(RunStatus, {
+      props: { result: null, localPhase: "backing_up" },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Committing local profiles" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
 describe("ExecutionPhases", () => {
+  it("summarizes the active step and keeps the full list collapsed", () => {
+    const { container } = render(ExecutionPhases, {
+      props: {
+        localPhase: "staging",
+        syncPhase: null,
+        syncExpected: true,
+      },
+    });
+
+    expect(
+      screen.getByText("Step 3 of 11: Stage local profiles"),
+    ).toBeInTheDocument();
+    expect(container.querySelectorAll(".phase-segments > i")).toHaveLength(11);
+    expect(
+      container.querySelector("details.phase-details"),
+    ).not.toHaveAttribute("open");
+  });
+
+  it("counts only applicable steps when synchronization is not expected", () => {
+    render(ExecutionPhases, {
+      props: { localPhase: "finished", syncPhase: null, syncExpected: false },
+    });
+
+    expect(screen.getByText("All 8 steps complete")).toBeInTheDocument();
+  });
+
   it("marks only event-backed local phases complete or active", () => {
     render(ExecutionPhases, {
       props: {

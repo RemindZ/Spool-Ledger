@@ -18,6 +18,7 @@ import type {
   SyncProgressEvent,
   SyncResult,
   TargetTemplateDecision,
+  UpdateCheck,
 } from "./types";
 
 interface SourceCatalogResponse {
@@ -97,6 +98,8 @@ export const api = {
   printerArtwork: (catalogId: string, printerId: string) =>
     invoke<ArrayBuffer>("printer_artwork", { catalogId, printerId }),
   openSupportPage: () => openUrl("https://buymeacoffee.com/Remitec"),
+  checkForUpdate: () => invoke<UpdateCheck>("check_for_update"),
+  openReleasePage: (tag: string) => invoke<void>("open_release_page", { tag }),
   executePlan: (
     planId: string,
     onProgress: (event: ExecutionProgressEvent) => void,
