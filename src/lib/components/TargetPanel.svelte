@@ -1,10 +1,5 @@
 <script lang="ts">
-  import {
-    AlertTriangle,
-    ChevronDown,
-    CircleDashed,
-    Settings,
-  } from "@lucide/svelte";
+  import { CircleDashed, Settings } from "@lucide/svelte";
   import type { PrinterTarget } from "../types";
   import PrinterArtwork from "./PrinterArtwork.svelte";
 
@@ -32,139 +27,86 @@
   const visiblePrinters = $derived(
     officialPrinters.filter((printer) => enabledPrinterIds.has(printer.id)),
   );
+
+  function allSelected(printer: PrinterTarget): boolean {
+    const supported = printer.nozzles.filter((nozzle) => nozzle.supported);
+    return (
+      supported.length > 0 &&
+      supported.every((nozzle) =>
+        selectedNozzles[printer.id]?.has(nozzle.diameter),
+      )
+    );
+  }
 </script>
 
-<section class="panel target-panel" aria-labelledby="target-heading">
-  <header class="panel-heading">
-    <div class="panel-title">
-      <span class="panel-step" aria-hidden="true">3</span>
-      <h2 id="target-heading">Printers & nozzles</h2>
-    </div>
-    <div class="target-heading-actions">
-      <span
-        class="panel-count"
-        aria-label={`${visiblePrinters.length} of ${officialPrinters.length} official printers enabled`}
-        >{visiblePrinters.length}/{officialPrinters.length}</span
-      >
-      <button
-        type="button"
-        class="icon-button"
-        aria-label="Manage enabled printers"
-        title="Manage enabled printers"
-        onclick={onManage}
-      >
-        <Settings size={16} />
-      </button>
-    </div>
-  </header>
+<div class="printer-tools">
+  <p
+    aria-label={`${visiblePrinters.length} of ${officialPrinters.length} official printers enabled`}
+  >
+    <strong>{visiblePrinters.length}</strong> of {officialPrinters.length} official
+    printers enabled
+  </p>
+  <button type="button" class="btn btn-secondary" onclick={onManage}>
+    <Settings size={15} /> Manage enabled printers
+  </button>
+</div>
 
-  <div class="printer-list">
-    {#each visiblePrinters as printer (printer.id)}
-      <details class="printer-card" open={printer.kind === "official"}>
-        <summary>
-          <PrinterArtwork {catalogId} {printer} />
-          <span class="printer-title">
-            <strong>{printer.name}</strong>
-            <small>
-              {printer.code} · {printer.extruder_variants.length}
-              {printer.extruder_variants.length === 1
-                ? "drive mode"
-                : "drive modes"}
-            </small>
-          </span>
-          <ChevronDown class="summary-chevron" size={16} />
-        </summary>
-        <div class="nozzle-actions">
-          <button
-            class="text-button"
-            type="button"
-            aria-label={`Select all nozzles for ${printer.name}`}
-            onclick={() => onSelectAll(printer.id, true)}>Select all</button
-          >
-          <button
-            class="text-button muted"
-            type="button"
-            onclick={() => onSelectAll(printer.id, false)}>Clear</button
-          >
+<div class="printer-grid">
+  {#each visiblePrinters as printer (printer.id)}
+    {@const all = allSelected(printer)}
+    <div class="printer">
+      <div class="printer-head">
+        <PrinterArtwork {catalogId} {printer} />
+        <div class="printer-copy">
+          <div class="printer-name">{printer.name}</div>
+          <div class="source-meta">
+            {printer.code} · {printer.extruder_variants.length}
+            {printer.extruder_variants.length === 1
+              ? "drive mode"
+              : "drive modes"}
+          </div>
         </div>
-        <div class="nozzle-grid">
-          {#each printer.nozzles as nozzle (nozzle.id)}
-            <label class="nozzle-option" class:unsupported={!nozzle.supported}>
-              <input
-                type="checkbox"
-                aria-label={`${nozzle.diameter} mm`}
-                checked={selectedNozzles[printer.id]?.has(nozzle.diameter) ??
-                  false}
-                disabled={!nozzle.supported}
-                onchange={() => onNozzleToggle(printer.id, nozzle.diameter)}
-              />
-              <span class="nozzle-glyph"
-                ><CircleDashed size={19} strokeWidth={1.7} /></span
-              >
-              <span><strong>{nozzle.diameter}</strong><small>mm</small></span>
-              {#if !nozzle.supported}
-                <small class="unsupported-reason"
-                  ><AlertTriangle size={12} /> Unavailable for this official printer</small
-                >
-              {/if}
-            </label>
-          {/each}
-        </div>
-      </details>
-    {:else}
-      <div class="panel-empty compact">
-        <CircleDashed size={26} />
-        <p>
-          No printers enabled. Use the settings button to add an official Bambu
-          printer.
-        </p>
+        <button
+          class="btn btn-quiet select-nozzles"
+          type="button"
+          aria-label={`${all ? "Clear" : "Select"} all nozzles for ${printer.name}`}
+          onclick={() => onSelectAll(printer.id, !all)}
+          >{all ? "Clear all" : "Select all"}</button
+        >
       </div>
-    {/each}
-  </div>
-</section>
-
-<style>
-  .target-heading-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .target-heading-actions .icon-button {
-    display: grid;
-    width: 2rem;
-    height: 2rem;
-    place-items: center;
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    background: var(--surface-raised);
-  }
-
-  .target-heading-actions .icon-button:hover {
-    color: var(--accent-strong);
-    border-color: var(--accent);
-  }
-
-  .printer-list {
-    min-height: 0;
-    max-height: 68vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-gutter: stable;
-    overscroll-behavior: contain;
-  }
-
-  @media (max-height: 48rem) {
-    .printer-list {
-      max-height: 48vh;
-    }
-  }
-
-  @media (max-width: 52rem) {
-    .printer-list {
-      max-height: 54vh;
-    }
-  }
-</style>
+      <div class="nozzles">
+        {#each printer.nozzles as nozzle (nozzle.id)}
+          <label
+            class="nozzle"
+            title={nozzle.supported
+              ? undefined
+              : "Unavailable for this official printer"}
+          >
+            <input
+              type="checkbox"
+              class="nozzle-check"
+              aria-label={`${nozzle.diameter} mm`}
+              checked={selectedNozzles[printer.id]?.has(nozzle.diameter) ??
+                false}
+              disabled={!nozzle.supported}
+              onchange={() => onNozzleToggle(printer.id, nozzle.diameter)}
+            />
+            <span
+              >{nozzle.diameter}{#if !nozzle.supported}<span class="sr-only"
+                  >&#32;Unavailable for this official printer</span
+                >{/if}</span
+            >
+          </label>
+        {/each}
+      </div>
+    </div>
+  {:else}
+    <div class="panel-empty compact">
+      <CircleDashed size={26} />
+      <p>
+        No printers enabled. Use Manage enabled printers to add an official
+        Bambu printer.
+      </p>
+    </div>
+  {/each}
+</div>

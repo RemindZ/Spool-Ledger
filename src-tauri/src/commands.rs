@@ -1,5 +1,6 @@
 use crate::AppError;
 use crate::discovery::{AccountRoot, DiscoveryService, DiscoverySnapshot, inspect_account};
+use crate::material::classify_material;
 use crate::model::{
     AccountEligibility, EvidenceLevel, PrinterTarget, ProfileId, SourceApp, SourceKind,
 };
@@ -445,6 +446,10 @@ pub struct CatalogSource {
     pub name: String,
     pub vendor: String,
     pub material: String,
+    /// Picker material group derived from `filament_type`, or "Other".
+    pub material_archetype: String,
+    /// Picker type from preset-name keywords, or "Standard".
+    pub material_type: String,
     pub family: String,
     pub variant: String,
     pub source_app: SourceApp,
@@ -608,6 +613,8 @@ pub enum ExecutionPhase {
 pub struct ExecutionProgressEvent {
     pub plan_id: String,
     pub phase: ExecutionPhase,
+    /// Monotonic milliseconds since execution started, taken when the phase began.
+    pub elapsed_ms: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -628,6 +635,25 @@ pub struct SynchronizeRunRequest {
 pub struct SyncProgressEvent {
     pub run_id: String,
     pub phase: SyncPhase,
+    /// Monotonic milliseconds since synchronization started, taken when the phase began.
+    pub elapsed_ms: u64,
+}
+
+/// Measures phase start times for progress events from a monotonic clock.
+pub struct PhaseStopwatch {
+    started: std::time::Instant,
+}
+
+impl PhaseStopwatch {
+    pub fn start() -> Self {
+        Self {
+            started: std::time::Instant::now(),
+        }
+    }
+
+    pub fn elapsed_ms(&self) -> u64 {
+        u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2031,11 +2057,14 @@ impl MigrationService {
 
 impl From<&MigrationSource> for CatalogSource {
     fn from(source: &MigrationSource) -> Self {
+        let class = classify_material(&source.material, &source.name, &source.vendor);
         Self {
             id: source.id.clone(),
             name: source.name.clone(),
             vendor: source.vendor.clone(),
             material: source.material.clone(),
+            material_archetype: class.archetype,
+            material_type: class.material_type,
             family: source.family.clone(),
             variant: source.variant.clone(),
             source_app: source.source_app,
@@ -2618,8 +2647,40 @@ impl ActiveSynchronizations {
 
 #[cfg(test)]
 mod tests {
-    use super::{ActiveSynchronizations, installed_system_profiles};
+    use super::{
+        ActiveSynchronizations, ExecutionPhase, ExecutionProgressEvent, PhaseStopwatch, SyncPhase,
+        SyncProgressEvent, installed_system_profiles,
+    };
     use std::sync::atomic::Ordering;
+
+    #[test]
+    fn phase_stopwatch_reports_monotonic_elapsed_milliseconds() {
+        let stopwatch = PhaseStopwatch::start();
+        let first = stopwatch.elapsed_ms();
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        let second = stopwatch.elapsed_ms();
+        assert!(second >= first + 20, "{first} -> {second}");
+    }
+
+    #[test]
+    fn progress_events_carry_elapsed_milliseconds() {
+        let execution = serde_json::to_value(ExecutionProgressEvent {
+            plan_id: "plan".to_owned(),
+            phase: ExecutionPhase::Staging,
+            elapsed_ms: 1234,
+        })
+        .unwrap();
+        assert_eq!(execution["phase"], "staging");
+        assert_eq!(execution["elapsed_ms"], 1234);
+
+        let sync = serde_json::to_value(SyncProgressEvent {
+            run_id: "run".to_owned(),
+            phase: SyncPhase::Monitoring,
+            elapsed_ms: 42,
+        })
+        .unwrap();
+        assert_eq!(sync["elapsed_ms"], 42);
+    }
 
     #[test]
     fn installed_profiles_fall_back_to_executable_resources() {
@@ -2902,6 +2963,7 @@ fn execute_plan_with_backend(
 ) -> Result<LocalRunResult, String> {
     let plan_id = request.plan_id.clone();
     let mut clock = SystemClock::default();
+    let stopwatch = PhaseStopwatch::start();
     state
         .service
         .lock()
@@ -2910,6 +2972,7 @@ fn execute_plan_with_backend(
             let _ = on_progress.send(ExecutionProgressEvent {
                 plan_id: plan_id.clone(),
                 phase,
+                elapsed_ms: stopwatch.elapsed_ms(),
             });
             if progress_delay_ms > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(progress_delay_ms));
@@ -2948,6 +3011,7 @@ fn synchronize_run_with_backend(
         .start(&request.run_id)
         .map_err(command_error)?;
     let mut runtime = FsSyncRuntime::new(token);
+    let stopwatch = PhaseStopwatch::start();
     let result = match state.service.lock() {
         Ok(service) => service
             .synchronize_run_with_progress(
@@ -2960,6 +3024,7 @@ fn synchronize_run_with_backend(
                     let _ = on_progress.send(SyncProgressEvent {
                         run_id: request.run_id.clone(),
                         phase,
+                        elapsed_ms: stopwatch.elapsed_ms(),
                     });
                     if progress_delay_ms > 0 {
                         std::thread::sleep(std::time::Duration::from_millis(progress_delay_ms));

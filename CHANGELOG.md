@@ -2,6 +2,25 @@
 
 All notable changes to Spool Ledger (Bambu Filament Migrator) are recorded here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A filament picker that starts with materials, narrows to a type, then lists the exact presets grouped by manufacturer. Material cards show preset and manufacturer counts, a selection meter, and a checkbox that selects every visible preset in that material.
+- Material and type classification in the source catalog. The material comes from each preset's filament type, and the type (for example Matte, Silk, High speed, Carbon fiber, or Glass fiber) comes from its name. Presets without a recognised type stay under their material as Standard, and presets without a material appear under Other.
+- Mouse Back and Forward buttons and Alt+Left and Alt+Right retrace the picker levels you visited.
+- **Run & verify** shows a step rail with the time each finished step took, measured by the app's backend.
+
+### Changed
+
+- New sage light theme and lifted charcoal dark theme. The title bar, step spines, step headers, and the run rail header stay dark in both themes.
+- The workspace is a three-step accordion: **Filament profiles**, **Naming**, and **Printers & nozzles**. **Continue** walks the steps, and the last step builds the plan.
+- The theme control is one button that cycles Automatic, then the opposite theme, then the remaining one.
+- Source, manufacturer, compatible printer, and migration status filters are checklists where every value starts checked. Family and variant filters, active filter chips, Reset, and **Select visible** are gone.
+- Source folders and discovery refresh moved into the **Catalog** menu at the bottom of the filament picker.
+- Naming uses two columns, and printers appear as a card grid.
+- The **Setup** and **Run & evidence** tabs are now **Workspace** and **Run & verify**.
+
 ## [1.0.0] - 2026-09-29
 
 First stable release for Windows x64.

@@ -1,37 +1,23 @@
 <script lang="ts">
-  import {
-    AlertTriangle,
-    ArchiveRestore,
-    CheckCircle2,
-    LoaderCircle,
-  } from "@lucide/svelte";
-  import ExecutionPhases from "./ExecutionPhases.svelte";
-  import type {
-    EvidenceLevel,
-    ExecutionPhase,
-    LocalRunResult,
-    SyncPhase,
-    SyncResult,
-  } from "../types";
+  import { ArchiveRestore, RotateCw } from "@lucide/svelte";
+  import type { EvidenceLevel, LocalRunResult, SyncResult } from "../types";
 
   let {
     result,
+    executing = false,
+    localError = null,
     synchronization = null,
     syncError = null,
     syncing = false,
-    localPhase = null,
-    syncPhase = null,
-    syncExpected = true,
     onRetrySync = () => {},
     onOpenRestore = null,
   }: {
     result: LocalRunResult | null;
+    executing?: boolean;
+    localError?: string | null;
     synchronization?: SyncResult | null;
     syncError?: string | null;
     syncing?: boolean;
-    localPhase?: ExecutionPhase | null;
-    syncPhase?: SyncPhase | null;
-    syncExpected?: boolean;
     onRetrySync?: () => void;
     onOpenRestore?: (() => void) | null;
   } = $props();
@@ -44,18 +30,32 @@
   };
 
   type Verdict = {
-    tone: "progress" | "warning" | "success";
+    tone: "idle" | "progress" | "warning" | "success";
     title: string;
     detail: string;
   };
 
   const verdict = $derived.by((): Verdict => {
     if (!result) {
+      if (executing) {
+        return {
+          tone: "progress",
+          title: "Committing local profiles",
+          detail:
+            "The local transaction is running. Each step reports when it finishes.",
+        };
+      }
+      if (localError) {
+        return {
+          tone: "warning",
+          title: "Local transaction stopped",
+          detail: `${localError} Review the plan, then commit again.`,
+        };
+      }
       return {
-        tone: "progress",
-        title: "Committing local profiles",
-        detail:
-          "The local transaction is running. Evidence appears below as each step finishes.",
+        tone: "idle",
+        title: "Waiting for a committed run",
+        detail: "Commit a frozen plan to begin local execution.",
       };
     }
     const count = result.committed_files;
@@ -105,44 +105,35 @@
 </script>
 
 <section
-  class="run-status"
+  class="panel run-status"
   data-tone={verdict.tone}
   aria-labelledby="run-status-heading"
 >
-  <div class="run-status-main">
-    <span class="run-status-mark" aria-hidden="true">
-      {#if verdict.tone === "progress"}<LoaderCircle
-          size={22}
-          class="spin"
-        />{:else if verdict.tone === "warning"}<AlertTriangle
-          size={22}
-        />{:else}<CheckCircle2 size={22} />{/if}
-    </span>
-    <div class="run-status-copy" role="status">
-      <p class="section-kicker">
-        {#if result}Run <code>{result.run_id}</code>{:else}Local transaction{/if}
-      </p>
-      <h2 id="run-status-heading">{verdict.title}</h2>
-      <p>{verdict.detail}</p>
+  <span class="tag run-tag"
+    >{result
+      ? result.run_id
+      : executing
+        ? "Local transaction"
+        : "No committed run"}</span
+  >
+  {#key verdict.title}
+    <h2 id="run-status-heading" class="run-status-headline">
+      {verdict.title}
+    </h2>
+  {/key}
+  <p role="status">{verdict.detail}</p>
+  {#if (result && onOpenRestore) || canRetry}
+    <div class="run-status-actions">
+      {#if canRetry}
+        <button class="btn btn-secondary" type="button" onclick={onRetrySync}>
+          <RotateCw size={15} /> Retry synchronization
+        </button>
+      {/if}
+      {#if result && onOpenRestore}
+        <button class="btn btn-secondary" type="button" onclick={onOpenRestore}>
+          <ArchiveRestore size={15} /> Open journal-owned restore
+        </button>
+      {/if}
     </div>
-    {#if (result && onOpenRestore) || canRetry}
-      <div class="run-status-actions">
-        {#if result && onOpenRestore}
-          <button
-            class="secondary-button"
-            type="button"
-            onclick={onOpenRestore}
-          >
-            <ArchiveRestore size={15} /> Open journal-owned restore
-          </button>
-        {/if}
-        {#if canRetry}
-          <button class="primary-button" type="button" onclick={onRetrySync}>
-            Retry synchronization
-          </button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-  <ExecutionPhases {localPhase} {syncPhase} {syncExpected} />
+  {/if}
 </section>

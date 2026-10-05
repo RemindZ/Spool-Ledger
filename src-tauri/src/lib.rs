@@ -4,6 +4,7 @@ pub mod demo;
 pub mod discovery;
 pub mod error;
 pub mod field_policy;
+pub mod material;
 pub mod model;
 pub mod naming;
 pub mod planner;
