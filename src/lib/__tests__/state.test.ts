@@ -11,7 +11,6 @@ import {
   selectedNozzleRequests,
   toggleSetValue,
   removeSetValue,
-  visibleSources,
   type AppAction,
 } from "../state";
 import type {
@@ -43,6 +42,8 @@ const sources: CatalogSource[] = [
     name: "Panchroma PLA Satin",
     vendor: "Polymaker",
     material: "PLA",
+    material_archetype: "PLA",
+    material_type: "Standard",
     family: "Panchroma",
     variant: "Satin",
     source_app: "orca_slicer",
@@ -56,6 +57,8 @@ const sources: CatalogSource[] = [
     name: "Bambu PLA Basic",
     vendor: "Bambu Lab",
     material: "PLA",
+    material_archetype: "PLA",
+    material_type: "Standard",
     family: "PLA Basic",
     variant: "Blue",
     source_app: "bambu_studio",
@@ -154,7 +157,7 @@ describe("application state", () => {
       { type: "source_toggled", sourceId: "panchroma-satin" },
       {
         type: "filters_changed",
-        filters: { vendors: new Set(["Polymaker"]), selectedOnly: true },
+        filters: { hiddenVendors: new Set(["Generic"]), selectedOnly: true },
       },
     ]);
     configured = appReducer(configured, {
@@ -172,7 +175,7 @@ describe("application state", () => {
     );
     expect(restored.selectedSourceIds).toEqual(new Set(["panchroma-satin"]));
     expect(restored.selectedNozzles["official:H2C"]).toEqual(new Set(["0.4"]));
-    expect(restored.filters.vendors).toEqual(new Set(["Polymaker"]));
+    expect(restored.filters.hiddenVendors).toEqual(new Set(["Generic"]));
     expect(restored.filters.selectedOnly).toBe(true);
     expect(restored.presetTemplate).toBe("{clean_name}");
 
@@ -252,8 +255,9 @@ describe("application state", () => {
     });
 
     expect(state.setupComplete).toBe(true);
-    expect(state.filters.sourceApps).toEqual(new Set(["orca_slicer"]));
-    expect(state.filters.sourceKinds).toEqual(new Set(["factory_system"]));
+    expect(state.filters.sources).toEqual(
+      new Set(["orca_slicer:factory_system"]),
+    );
     expect(state.enabledPrinterIds).toEqual(new Set(["official:H2C"]));
     expect(state.selectedNozzles).toEqual({
       "official:H2C": new Set(["0.4"]),
@@ -383,13 +387,19 @@ describe("application state", () => {
     ]);
     state = appReducer(state, {
       type: "filters_changed",
-      filters: { search: "panchroma", sourceApps: new Set(["orca_slicer"]) },
+      filters: {
+        search: "panchroma",
+        sources: new Set(["orca_slicer:factory_system"]),
+      },
     });
-    expect(visibleSources(state)).toHaveLength(1);
     expect(state.selectedSourceIds).toEqual(
       new Set(["panchroma-satin", "bambu-basic"]),
     );
-    state = appReducer(state, { type: "select_visible", selected: false });
+    state = appReducer(state, {
+      type: "sources_selected",
+      sourceIds: ["panchroma-satin"],
+      selected: false,
+    });
     expect(state.selectedSourceIds).toEqual(new Set(["bambu-basic"]));
   });
 
@@ -569,6 +579,7 @@ describe("application state", () => {
     state = appReducer(state, {
       type: "synchronization_phase",
       phase: "monitoring",
+      elapsedMs: 10,
     });
     state = appReducer(state, {
       type: "synchronization_completed",
@@ -616,5 +627,36 @@ describe("application state", () => {
       operationIds: ["op-1"],
     });
     expect(verified.progress["op-1"].evidence).toBe("ams_verified");
+  });
+
+  it("records backend phase timings for the run rail and flags a failed commit", () => {
+    let state = appReducer(createInitialState(), { type: "execution_started" });
+    state = appReducer(state, {
+      type: "execution_phase",
+      phase: "validating",
+      elapsedMs: 0,
+    });
+    state = appReducer(state, {
+      type: "execution_phase",
+      phase: "staging",
+      elapsedMs: 240,
+    });
+    expect(state.executionTimeline).toEqual([
+      { phase: "validating", elapsed_ms: 0 },
+      { phase: "staging", elapsed_ms: 240 },
+    ]);
+    state = appReducer(state, { type: "failed", message: "Commit failed" });
+    expect(state.executionFailed).toBe(true);
+
+    state = appReducer(state, { type: "execution_started" });
+    expect(state.executionTimeline).toEqual([]);
+    expect(state.executionFailed).toBe(false);
+    state = appReducer(state, { type: "synchronization_started" });
+    state = appReducer(state, {
+      type: "synchronization_phase",
+      phase: "launching",
+      elapsedMs: 5,
+    });
+    expect(state.syncTimeline).toEqual([{ phase: "launching", elapsed_ms: 5 }]);
   });
 });

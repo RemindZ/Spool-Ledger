@@ -5,53 +5,62 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AppChrome from "../components/AppChrome.svelte";
-import FilterBar from "../components/FilterBar.svelte";
-import FilterTools from "../components/FilterTools.svelte";
-import SourceTable from "../components/SourceTable.svelte";
-import { createInitialState, sourceFacets, type SourceFilters } from "../state";
+import Harness from "./fixtures/FilamentPickerHarness.svelte";
 import type { CatalogSource, DiscoveryResponse } from "../types";
 
 afterEach(cleanup);
 
-const sources: CatalogSource[] = [
-  {
-    id: "orca:satin",
-    name: "Panchroma PLA Satin @BBL X1C",
-    vendor: "Polymaker",
-    material: "PLA",
-    family: "Panchroma",
-    variant: "Satin",
+function preset(
+  id: string,
+  vendor: string,
+  archetype: string,
+  type: string,
+  overrides: Partial<CatalogSource> = {},
+): CatalogSource {
+  return {
+    id,
+    name: `${vendor} ${archetype} ${type}`,
+    vendor,
+    material: archetype,
+    material_archetype: archetype,
+    material_type: type,
+    family: `${vendor} ${archetype}`,
+    variant: type,
     source_app: "orca_slicer",
     source_kind: "factory_system",
-    compatible_printers: ["Bambu Lab X1 Carbon"],
+    compatible_printers: ["Bambu Lab H2C 0.4 nozzle"],
     migration_status: "new",
     warnings: [],
-  },
-  {
-    id: "bambu:petg",
-    name: "Workshop PETG",
-    vendor: "Workshop",
-    material: "PETG",
-    family: "Utility",
-    variant: "Matte",
+    ...overrides,
+  };
+}
+
+const sources: CatalogSource[] = [
+  preset("pla-std", "Overture", "PLA", "Standard"),
+  preset("pla-matte", "Overture", "PLA", "Matte"),
+  preset("pla-silk", "Fiberlogy", "PLA", "Silk", {
     source_app: "bambu_studio",
+  }),
+  preset("pla-matte-user", "Fiberlogy", "PLA", "Matte", {
     source_kind: "user_custom",
-    compatible_printers: ["Bambu Lab H2C"],
-    migration_status: "conflicting",
-    warnings: ["Missing characterized field policy"],
-  },
+    warnings: ["Missing parent profile"],
+  }),
+  preset("abs-std", "Overture", "ABS", "Standard"),
+  preset("abs-gf", "Fiberlogy", "ABS", "Glass fiber"),
+  preset("pctg", "Fiberlogy", "PCTG", "Standard"),
 ];
 
 const discovery: DiscoveryResponse = {
-  source_root_ids: ["orca-system", "bambu-user"],
+  source_root_ids: ["orca-system"],
   manual_source_roots: [],
   target_catalog_ids: ["bambu-system"],
   orca_slicer_detected: true,
-  bambu_studio_detected: true,
+  bambu_studio_detected: false,
   platform: "windows",
   accounts: [
     {
@@ -63,12 +72,21 @@ const discovery: DiscoveryResponse = {
   ],
 };
 
-describe("workspace controls", () => {
+function renderPicker(props: Partial<Record<string, unknown>> = {}) {
+  const onSelectionChange = vi.fn();
+  const view = render(Harness, {
+    props: { sources, discovery, onSelectionChange, ...props },
+  });
+  return { ...view, onSelectionChange };
+}
+
+const card = (name: string) =>
+  screen.getByRole("heading", { name }).closest("article") as HTMLElement;
+
+describe("application chrome", () => {
   it("names the empty destination account state instead of rendering a blank select", () => {
     const props = {
       theme: "system" as const,
-      busy: false,
-      onRefresh: vi.fn(),
       onAccountChanged: vi.fn(),
       onThemeChanged: vi.fn(),
     };
@@ -100,211 +118,329 @@ describe("workspace controls", () => {
     ).toHaveTextContent("Select an account");
   });
 
-  it("shows truthful discovery, eligible accounts, source access, and the theme menu", async () => {
+  it("puts tabs, destination and Local only in one toolbar under the textured title bar", async () => {
     const onAccountChanged = vi.fn();
     const onThemeChanged = vi.fn();
-    render(AppChrome, {
+    const { container } = render(AppChrome, {
       props: {
         discovery,
         selectedAccountId: "account-ready",
         theme: "system",
-        busy: false,
-        onRefresh: vi.fn(),
         onAccountChanged,
         onThemeChanged,
       },
     });
 
-    const detected = screen.getByLabelText("Detected applications");
-    expect(detected).toHaveTextContent("OrcaSlicer detected");
-    expect(detected).toHaveTextContent("Bambu Studio detected");
-    expect(screen.queryByText(/Windows build/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Local only")).toBeInTheDocument();
+    const route = screen.getByLabelText("Migration route");
+    expect(route).toHaveTextContent("OrcaSlicer detected");
+    expect(route).toHaveTextContent("Bambu Studio not detected");
+    expect(container.querySelector(".route-source")).toHaveTextContent(
+      "OrcaSlicer",
+    );
+    expect(screen.queryByText("Sample workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Source folders")).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Nothing is written until you review/),
+      screen.queryByRole("button", { name: "Appearance" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Source folders")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Setup/ })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /account-ready/ })).toBeEnabled();
+
+    const toolbar = container.querySelector(".toolbar") as HTMLElement;
     expect(
-      screen.getByRole("option", { name: /account-backup/ }),
+      within(toolbar)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent?.trim()),
+    ).toEqual(["Workspace", "Review plan", "Run & verify", "Restore"]);
+    expect(within(toolbar).getByText("Local only")).toBeInTheDocument();
+    expect(
+      within(toolbar).getByRole("option", { name: /account-backup/ }),
     ).toBeDisabled();
     await fireEvent.change(screen.getByLabelText("Destination account"), {
       target: { value: "account-ready" },
     });
     expect(onAccountChanged).toHaveBeenCalledWith("account-ready");
 
-    const appearance = screen.getByRole("button", { name: "Appearance" });
-    expect(appearance).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByRole("group", { name: "Theme" }),
-    ).not.toBeInTheDocument();
-    await fireEvent.click(appearance);
-    expect(appearance).toHaveAttribute("aria-expanded", "true");
-    const theme = screen.getByRole("group", { name: "Theme" });
-    expect(
-      within(theme).getByRole("button", { name: "System" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    await fireEvent.click(within(theme).getByRole("button", { name: "Dark" }));
-    expect(onThemeChanged).toHaveBeenCalledWith("dark");
-    await fireEvent.keyDown(
-      within(theme).getByRole("button", { name: "Light" }),
-      {
-        key: "Escape",
-      },
+    await fireEvent.click(
+      screen.getByRole("button", { name: /^Theme: Automatic/ }),
     );
-    expect(appearance).toHaveAttribute("aria-expanded", "false");
+    expect(onThemeChanged).toHaveBeenCalledOnce();
+  });
+});
+
+describe("filament profiles picker", () => {
+  it("lays out material cards with the tiering rule and selection meters", async () => {
+    renderPicker({ initialSelected: ["pla-matte"] });
+
+    expect(
+      [...document.querySelectorAll(".mat-name")].map((h) => h.textContent),
+    ).toEqual(["PLA", "PCTG", "ABS"]);
+    const pla = card("PLA");
+    expect(pla).toHaveClass("has-selection");
+    expect(within(pla).getByText("1 selected")).toBeInTheDocument();
+    expect(pla).toHaveTextContent("4 presets · 2 manufacturers");
+    expect(
+      within(pla).getByText("Standard · Matte · Silk"),
+    ).toBeInTheDocument();
+    expect(
+      within(pla).getByRole("button", { name: /Browse 3 types/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(card("ABS")).getByRole("list", { name: "ABS types" }),
+    ).toBeInTheDocument();
+    expect(
+      within(card("PCTG")).getByRole("button", { name: /Browse 1 preset/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(pla).getByRole("checkbox", {
+        name: "Select all 4 shown PLA presets",
+      }),
+    ).toHaveProperty("indeterminate", true);
   });
 
-  it("exposes every filter dimension through chips and More filters", async () => {
-    const filters = createInitialState().filters;
-    const onFiltersChanged = vi.fn();
-    const onReset = vi.fn();
-    render(FilterBar, {
-      props: {
-        filters,
-        facets: sourceFacets(sources),
-        onFiltersChanged,
-        onReset,
-      },
-    });
+  it("recomputes tiers under filters and bulk-selects only visible presets", async () => {
+    const { onSelectionChange } = renderPicker();
+    await fireEvent.click(screen.getByText("All sources"));
+    const sourceMenu = screen.getByRole("group", { name: "Preset sources" });
+    expect(within(sourceMenu).getByText("OrcaSlicer")).toBeInTheDocument();
+    expect(within(sourceMenu).getByText("Bambu Studio")).toBeInTheDocument();
+    const bambuSystem = within(sourceMenu).getAllByRole("checkbox")[2];
+    await fireEvent.click(bambuSystem);
+    expect(screen.getByText("3 of 4")).toBeInTheDocument();
+    expect(screen.getByText("3 of 4").closest("details")).toHaveClass(
+      "is-filtered",
+    );
 
-    await fireEvent.input(screen.getByLabelText("Search source profiles"), {
-      target: { value: "satin" },
-    });
-    expect(onFiltersChanged).toHaveBeenCalledWith({ search: "satin" });
+    const pla = card("PLA");
+    expect(within(pla).getByRole("list", { name: "PLA types" })).toBeVisible();
+    await fireEvent.click(
+      within(pla).getByRole("checkbox", {
+        name: "Select all 3 shown PLA presets",
+      }),
+    );
+    expect(onSelectionChange).toHaveBeenLastCalledWith([
+      "pla-matte",
+      "pla-matte-user",
+      "pla-std",
+    ]);
+    expect(screen.getByText(/presets selected/)).toHaveTextContent(
+      "3 presets selected",
+    );
+  });
 
-    expect(screen.queryByLabelText("OrcaSlicer")).not.toBeInTheDocument();
-    const appChip = screen.getByRole("button", { name: "Source app" });
-    await fireEvent.click(appChip);
-    expect(appChip).toHaveAttribute("aria-expanded", "true");
-    await fireEvent.click(screen.getByLabelText("OrcaSlicer"));
-    const update = onFiltersChanged.mock.calls[
-      onFiltersChanged.mock.calls.length - 1
-    ]?.[0] as Partial<SourceFilters>;
-    expect(update.sourceApps).toEqual(new Set(["orca_slicer"]));
-    expect(filters.sourceApps.size).toBe(0);
-    await fireEvent.keyDown(screen.getByLabelText("OrcaSlicer"), {
-      key: "Escape",
-    });
-    expect(appChip).toHaveAttribute("aria-expanded", "false");
+  it("scopes manufacturer Select all and Clear all to the search and reports hidden selections", async () => {
+    renderPicker({ initialSelected: ["abs-gf", "pla-std"] });
+    await fireEvent.click(screen.getByText("All manufacturers"));
+    const search = screen.getByLabelText("Filter manufacturers");
+    await waitFor(() => expect(search).toHaveFocus());
+    await fireEvent.input(search, { target: { value: "fib" } });
+    const menu = screen.getByRole("group", { name: "Manufacturers" });
+    expect(within(menu).queryByText("Overture")).not.toBeInTheDocument();
+    await fireEvent.click(
+      within(menu).getByRole("button", { name: "Clear all" }),
+    );
 
-    for (const name of ["Manufacturer", "Material", "Status"]) {
-      expect(screen.getByRole("button", { name })).toBeInTheDocument();
-    }
-    await fireEvent.click(screen.getByRole("button", { name: "More filters" }));
-    const more = screen.getByRole("group", { name: "More filters" });
-    for (const title of [
-      "Source kind",
-      "Family",
-      "Variant",
-      "Compatible printer",
-    ]) {
-      expect(within(more).getByText(title)).toBeInTheDocument();
-    }
-    await fireEvent.click(within(more).getByLabelText("User / custom"));
     expect(
-      (
-        onFiltersChanged.mock.calls[
-          onFiltersChanged.mock.calls.length - 1
-        ]?.[0] as Partial<SourceFilters>
-      ).sourceKinds,
-    ).toEqual(new Set(["user_custom"]));
+      screen.getByText("Overture", { selector: ".filter-value" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/presets selected/)).toHaveTextContent(
+      "2 presets selected · 1 hidden by filters",
+    );
+    await fireEvent.input(search, { target: { value: "" } });
+    await fireEvent.click(
+      within(menu).getByRole("button", { name: "Clear all" }),
+    );
+    expect(screen.getByText("No manufacturers selected")).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Select all manufacturers" }),
+    );
+    expect(screen.getByText("All manufacturers")).toBeInTheDocument();
+  });
+
+  it("drills into materials and types, moves focus, and announces the level", async () => {
+    const { container } = renderPicker();
+    await fireEvent.click(
+      within(card("PLA")).getByRole("button", { name: /Browse 3 types/ }),
+    );
+    const crumbs = screen.getByRole("navigation", { name: "Material path" });
+    await waitFor(() => expect(within(crumbs).getByText("PLA")).toHaveFocus());
+    expect(container.querySelector('[aria-live="polite"]')).toHaveTextContent(
+      "PLA: 3 types",
+    );
+    expect(
+      (container.querySelector(".picker-stage") as HTMLElement).dataset.motion,
+    ).toBe("forward");
 
     await fireEvent.click(
-      screen.getByRole("button", { name: "Reset filters" }),
+      within(card("Matte")).getByRole("button", { name: /Browse presets/ }),
     );
-    expect(onReset).toHaveBeenCalledOnce();
+    expect(within(crumbs).getByText("Matte")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Fiberlogy" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Missing parent profile")).toBeInTheDocument();
+    expect(container.querySelector(".path-actions")).toHaveTextContent(
+      "2 shown · 0 selected",
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Select all 2" }));
+    expect(
+      screen.getByRole("button", { name: "Clear these" }),
+    ).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Up one level" }));
+    expect(within(crumbs).getByText("PLA")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
-  it("counts active selections on each filter chip", () => {
-    const filters = {
-      ...createInitialState().filters,
-      materials: new Set(["PLA"]),
-      families: new Set(["Panchroma"]),
-      variants: new Set(["Satin"]),
-    };
-    render(FilterBar, {
-      props: {
-        filters,
-        facets: sourceFacets(sources),
-        onFiltersChanged: vi.fn(),
-        onReset: vi.fn(),
-      },
-    });
+  it("collapses non-tiered materials in the path and skips the missing tier going up", async () => {
+    renderPicker();
+    await fireEvent.click(
+      within(card("ABS")).getByRole("button", { name: /Glass fiber/ }),
+    );
+    const crumbs = screen.getByRole("navigation", { name: "Material path" });
+    expect(within(crumbs).getByText("ABS · Glass fiber")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Up one level" }));
+    expect(within(crumbs).getByText("All materials")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
 
+  it("searches within the current level and offers Clear search when nothing matches", async () => {
+    renderPicker();
+    await fireEvent.click(
+      within(card("ABS")).getByRole("button", { name: /Standard/ }),
+    );
+    const search = screen.getByLabelText("Search presets in this view");
+    await fireEvent.input(search, { target: { value: "matte" } });
+    expect(screen.getByText("No presets match “matte”")).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(search).toHaveValue("");
     expect(
-      screen.getByRole("button", { name: "Material, 1 selected" }),
+      screen.getByLabelText("Select Overture ABS Standard"),
+    ).toBeInTheDocument();
+
+    await fireEvent.input(search, { target: { value: "matte" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Up one level" }));
+    expect(
+      screen.getByRole("heading", { name: "PLA · Matte" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "More filters, 2 selected" }),
+      screen.getByLabelText("Select Overture PLA Matte"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Select Fiberlogy PLA Matte"),
     ).toBeInTheDocument();
   });
 
-  it("keeps selected-only and saved filter presets beside the selection controls", async () => {
-    const filters = createInitialState().filters;
-    const onFiltersChanged = vi.fn();
+  it("shows the selected-only empty state and the footer popovers", async () => {
+    const onRefresh = vi.fn();
     const onSavePreset = vi.fn();
-    const onLoadPreset = vi.fn();
-    const onDeletePreset = vi.fn();
-    render(FilterTools, {
-      props: {
-        filters,
-        savedPresets: [{ id: "pla", name: "PLA only", filters }],
-        onFiltersChanged,
-        onSavePreset,
-        onLoadPreset,
-        onDeletePreset,
-      },
-    });
+    renderPicker({ onRefresh, onSavePreset });
 
-    await fireEvent.click(screen.getByLabelText("Selected only"));
-    expect(onFiltersChanged).toHaveBeenCalledWith({ selectedOnly: true });
+    await fireEvent.click(screen.getByLabelText("Show selected only"));
+    expect(screen.getByText("Nothing selected here yet")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByText("Catalog"));
+    expect(screen.getByText("Ready · 7 presets")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Source folders" }),
+    ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: "Refresh profile discovery" }),
+    );
+    expect(onRefresh).toHaveBeenCalledOnce();
 
     await fireEvent.click(screen.getByText("Saved filters"));
     await fireEvent.input(screen.getByLabelText("Filter preset name"), {
-      target: { value: "Panchroma" },
+      target: { value: "Everyday" },
     });
     await fireEvent.click(
       screen.getByRole("button", { name: "Save filter preset" }),
     );
-    expect(onSavePreset).toHaveBeenCalledWith("Panchroma");
-    await fireEvent.change(screen.getByLabelText("Saved filter presets"), {
-      target: { value: "pla" },
-    });
-    expect(onLoadPreset).toHaveBeenCalledWith("pla");
+    expect(onSavePreset).toHaveBeenCalledWith("Everyday");
+    expect(screen.queryByLabelText("Show custom printers")).toBeNull();
+  });
+});
+
+describe("drilldown history", () => {
+  async function drillIntoMatte() {
     await fireEvent.click(
-      screen.getByRole("button", { name: "Delete filter preset PLA only" }),
+      within(card("PLA")).getByRole("button", { name: /Browse 3 types/ }),
     );
-    expect(onDeletePreset).toHaveBeenCalledWith("pla");
+    await fireEvent.click(
+      within(card("Matte")).getByRole("button", { name: /Browse presets/ }),
+    );
+  }
+
+  const current = () =>
+    within(screen.getByRole("navigation", { name: "Material path" }))
+      .getAllByText(/./)
+      .find((node) => node.getAttribute("aria-current") === "page")
+      ?.textContent;
+
+  it("retraces levels with mouse Back and Forward and cancels the default", async () => {
+    renderPicker();
+    await drillIntoMatte();
+    expect(current()).toBe("Matte");
+
+    const down = new MouseEvent("mousedown", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    const up = new MouseEvent("mouseup", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(up);
+    expect(up.defaultPrevented).toBe(true);
+    await waitFor(() => expect(current()).toBe("PLA"));
+
+    document.dispatchEvent(new MouseEvent("mouseup", { button: 3 }));
+    await waitFor(() => expect(current()).toBe("All materials"));
+    document.dispatchEvent(new MouseEvent("mouseup", { button: 3 }));
+    expect(current()).toBe("All materials");
+
+    document.dispatchEvent(new MouseEvent("mouseup", { button: 4 }));
+    await waitFor(() => expect(current()).toBe("PLA"));
   });
 
-  it("renders dense source provenance, warnings, and selection controls", async () => {
-    const onToggle = vi.fn();
-    const onSelectVisible = vi.fn();
-    render(SourceTable, {
-      props: {
-        sources,
-        selectedIds: new Set(["orca:satin"]),
-        totalCount: 7,
-        onToggle,
-        onSelectVisible,
-        onClearSelection: vi.fn(),
-      },
-    });
+  it("moves with Alt+arrows and clears Forward after a new navigation", async () => {
+    renderPicker();
+    await drillIntoMatte();
+    await fireEvent.keyDown(document, { key: "ArrowLeft", altKey: true });
+    await waitFor(() => expect(current()).toBe("PLA"));
 
-    expect(screen.getByText("2 of 7 profiles")).toBeInTheDocument();
-    const satinRow = screen.getByRole("row", { name: /Panchroma PLA Satin/ });
-    expect(within(satinRow).getByText("OrcaSlicer")).toBeInTheDocument();
-    expect(within(satinRow).getByRole("checkbox")).toBeChecked();
-    expect(
-      screen.getByText("Missing characterized field policy"),
-    ).toBeInTheDocument();
-    await fireEvent.click(within(satinRow).getByRole("checkbox"));
-    expect(onToggle).toHaveBeenCalledWith("orca:satin");
     await fireEvent.click(
-      screen.getByRole("button", { name: "Select visible" }),
+      within(card("Silk")).getByRole("button", { name: /Browse presets/ }),
     );
-    expect(onSelectVisible).toHaveBeenCalledWith(true);
+    expect(current()).toBe("Silk");
+    await fireEvent.keyDown(document, { key: "ArrowRight", altKey: true });
+    expect(current()).toBe("Silk");
+    await fireEvent.keyDown(document, { key: "ArrowLeft", altKey: true });
+    await waitFor(() => expect(current()).toBe("PLA"));
+  });
+
+  it("does nothing while the step is not in front", async () => {
+    renderPicker({ historyActive: false });
+    await drillIntoMatte();
+    const up = new MouseEvent("mouseup", {
+      button: 3,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(up);
+    expect(up.defaultPrevented).toBe(false);
+    await fireEvent.keyDown(document, { key: "ArrowLeft", altKey: true });
+    expect(current()).toBe("Matte");
   });
 });

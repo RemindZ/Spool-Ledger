@@ -127,20 +127,57 @@ describe("theme contrast", () => {
     });
   }
 
+  it("keeps chrome text at AA on the dark island surfaces in every theme", () => {
+    const chrome = [
+      "--dark-bg",
+      "--dark-surface",
+      "--dark-raised",
+      "--spine-bg",
+    ];
+    const failures = Object.entries(themes).flatMap(([theme, tokens]) =>
+      [
+        ["--dark-fg", 4.5],
+        ["--dark-muted", 4.5],
+        ["--dark-source", 3],
+        ["--dark-accent", 3],
+      ].flatMap(([foreground, min]) =>
+        chrome
+          .map((background) => ({
+            pair: `${theme}: ${foreground} on ${background}`,
+            ratio: contrast(
+              resolve(tokens, foreground as string),
+              resolve(tokens, background),
+            ),
+          }))
+          .filter(({ ratio }) => ratio < (min as number))
+          .map(({ pair, ratio }) => `${pair}: ${ratio.toFixed(2)}`),
+      ),
+    );
+    expect(failures).toEqual([]);
+    expect(css).toMatch(
+      /\.dark-island\s*\{[^}]*--fg:\s*var\(--dark-fg\);[^}]*--muted:\s*var\(--dark-muted\);/s,
+    );
+  });
+
   it("routes action, danger, orange text, controls, and focus through the contrast tokens", () => {
-    expect(css).toMatch(
-      /\.primary-button\s*\{[^}]*background:\s*var\(--action\);[^}]*color:\s*var\(--on-action\);/s,
-    );
-    expect(css).toMatch(
-      /\.danger-button\s*\{[^}]*color:\s*var\(--on-danger\);/s,
-    );
     for (const selector of [
-      String.raw`\.provenance\[data-app="orca_slicer"\] span:first-child`,
-      String.raw`\.support-button:hover`,
+      String.raw`\.primary-button`,
+      String.raw`\.btn-primary`,
     ]) {
       expect(css).toMatch(
         new RegExp(
-          `${selector}\\s*\\{[^}]*color:\\s*var\\(--orca-ink\\);`,
+          String.raw`${selector}\s*\{[^}]*background:\s*var\(--action\);[^}]*color:\s*var\(--on-action\);`,
+          "s",
+        ),
+      );
+    }
+    expect(css).toMatch(
+      /\.danger-button\s*\{[^}]*color:\s*var\(--on-danger\);/s,
+    );
+    for (const selector of [String.raw`\.support-button:hover`]) {
+      expect(css).toMatch(
+        new RegExp(
+          String.raw`${selector}\s*\{[^}]*color:\s*var\(--orca-ink\);`,
           "s",
         ),
       );
@@ -148,11 +185,17 @@ describe("theme contrast", () => {
     expect(css).toMatch(
       /button:focus-visible,\s*input:focus-visible,\s*select:focus-visible,\s*summary:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\);/s,
     );
-    expect(css).toMatch(
-      /\.source-profile-check\s*\{[^}]*border:\s*1px solid var\(--control-border\);/s,
-    );
-    expect(css).toMatch(
-      /select,\s*\.template-fields input,\s*\.search-field\s*\{[^}]*border:\s*1px solid var\(--control-border\);/s,
-    );
+    for (const selector of [
+      String.raw`\.source-check`,
+      String.raw`\.input,\s*select\.select`,
+      String.raw`select,\s*\.template-fields input`,
+    ]) {
+      expect(css).toMatch(
+        new RegExp(
+          String.raw`${selector}\s*\{[^}]*border:\s*1px solid var\(--control-border\);`,
+          "s",
+        ),
+      );
+    }
   });
 });

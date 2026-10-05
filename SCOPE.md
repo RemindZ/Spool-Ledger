@@ -175,43 +175,41 @@ The top bar shows:
 
 ### 7.2 Source panel
 
-The left panel lists source filament profiles with multi-select support. Selections persist while filters change.
+The left step is a drilldown source picker with multi-select support: material cards, then type cards when a material has three or more visible types, then presets grouped by manufacturer. Selections persist while filters change.
 
 Available filters:
 
-- Free-text search.
-- Source application: OrcaSlicer or Bambu Studio.
-- Source kind: factory/system or user/custom.
-- Manufacturer/vendor.
-- Plastic/material type.
-- Profile family.
-- Variant or serial.
+- Search within the current drilldown level.
+- Source application and kind: OrcaSlicer or Bambu Studio, system presets or your presets.
+- Manufacturer/vendor, with a search box inside the menu.
 - Compatible source printer.
 - Migration status: new, already migrated, incomplete, conflicting, unsupported.
 - Selected only.
 
+The material archetype and type of each source come from the Rust catalog: the archetype from the resolved `filament_type`, the type from preset-name keywords. Presets without a keyword stay under their material as Standard, and presets without a material go under Other.
+
 Filter behavior includes:
 
-- Multi-select values within a filter.
-- Removable active-filter chips.
-- Result counts.
-- Select visible.
-- Deselect visible.
+- Checklist menus where every value starts checked, with Select all and Clear all limited to the values a menu search shows.
+- Result counts per level and per menu value.
+- Tri-state selection of every visible preset in a material or type.
+- Select all or clear the visible presets at the preset level and in search results.
+- A count of selected presets hidden by the filters.
 - Clear all selections.
-- Reset filters without clearing selections.
+- Browser-style drilldown history through mouse Back and Forward buttons and Alt+arrow keys.
 
-Each source row exposes its origin, inheritance health, vendor, material, and compatibility summary without requiring the raw JSON to be opened.
+Each source row exposes its origin, migration status, and warnings without requiring the raw JSON to be opened.
 
 ### 7.3 Destination panel
 
-The right panel contains:
+The printers and nozzles step contains:
 
 - Enabled official Bambu target printers discovered from installed manifests.
-- Per-printer expansion.
+- One card per enabled printer in a responsive grid.
 - Per-nozzle checkboxes.
 - Extruder-variant information.
 - Select-all-nozzles and clear controls per printer.
-- A **Manage enabled printers** cogwheel that opens a Cancel-first native dialog with draft state.
+- A **Manage enabled printers** button that opens a Cancel-first native dialog with draft state.
 - Installed printer artwork when a validated image is available under the approved Bambu catalog root, with a local glyph fallback.
 - Warnings for target templates that cannot be resolved.
 

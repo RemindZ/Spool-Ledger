@@ -1,10 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowRight, Lock, Route } from "@lucide/svelte";
   import AppChrome from "../../src/lib/components/AppChrome.svelte";
-  import RunStatus from "../../src/lib/components/RunStatus.svelte";
-  import FilterBar from "../../src/lib/components/FilterBar.svelte";
-  import FilterTools from "../../src/lib/components/FilterTools.svelte";
+  import FilamentPicker from "../../src/lib/components/FilamentPicker.svelte";
   import FirstRunSetup from "../../src/lib/components/FirstRunSetup.svelte";
   import NamingPanel from "../../src/lib/components/NamingPanel.svelte";
   import PlanDependencyDialog from "../../src/lib/components/PlanDependencyDialog.svelte";
@@ -12,74 +9,142 @@
   import PrinterManagerDialog from "../../src/lib/components/PrinterManagerDialog.svelte";
   import RestorePanel from "../../src/lib/components/RestorePanel.svelte";
   import ResultSummary from "../../src/lib/components/ResultSummary.svelte";
+  import RouteBar from "../../src/lib/components/RouteBar.svelte";
   import RunProgress from "../../src/lib/components/RunProgress.svelte";
-  import SourceTable from "../../src/lib/components/SourceTable.svelte";
+  import RunRail from "../../src/lib/components/RunRail.svelte";
+  import RunStatus from "../../src/lib/components/RunStatus.svelte";
+  import StepRail from "../../src/lib/components/StepRail.svelte";
   import TargetPanel from "../../src/lib/components/TargetPanel.svelte";
   import UpdateNotice from "../../src/lib/components/UpdateNotice.svelte";
-  import { createInitialState, sourceFacets } from "../../src/lib/state";
+  import { runRail, type PhaseMark } from "../../src/lib/run-rail";
+  import { defaultFilters, type OperationProgress } from "../../src/lib/state";
+  import { STEP_IDS, WORKSPACE_STEPS } from "../../src/lib/steps";
   import type {
     CatalogSource,
     ConflictDecision,
     DiscoveryResponse,
+    EvidenceLevel,
+    ExecutionPhase,
     MigrationPlan,
+    OperationState,
     PlanOperation,
     PrinterTarget,
+    SourceApp,
+    SourceKind,
+    SyncPhase,
     SyncResult,
   } from "../../src/lib/types";
 
   const states = [
     ["initial", "1 Initial inventory"],
     ["no-account", "2 No eligible account"],
-    ["ready", "3 Ready workspace"],
-    ["naming", "4 Advanced naming"],
-    ["plan", "5 Mixed plan"],
-    ["conflict", "6 Conflict selected"],
-    ["execution", "7 Local execution"],
-    ["monitoring", "8 Synchronization"],
-    ["timeout", "9 Timeout"],
-    ["cloud", "10 Cloud IDs"],
-    ["ams", "11 AMS verified"],
-    ["restore", "12 Restore preview"],
-    ["narrow", "13 Narrow layout"],
-    ["setup", "14 First-run setup"],
-    ["manager", "15 Printer manager"],
-    ["dependency", "16 Target dependency"],
-    ["artwork-fallback", "17 Artwork fallback"],
-    ["update", "18 Update available"],
+    ["ready", "3 Filament materials"],
+    ["manufacturer-menu", "4 Manufacturer menu"],
+    ["presets", "5 Filament presets"],
+    ["naming", "6 Naming step"],
+    ["printers", "7 Printers step"],
+    ["plan", "8 Mixed plan"],
+    ["conflict", "9 Conflict selected"],
+    ["run-idle", "10 Run idle"],
+    ["execution", "11 Local execution"],
+    ["commit-failed", "12 Commit failed"],
+    ["monitoring", "13 Synchronization"],
+    ["timeout", "14 Timeout"],
+    ["cloud", "15 Cloud IDs"],
+    ["ams", "16 AMS verified"],
+    ["restore", "17 Restore preview"],
+    ["narrow", "18 Narrow layout"],
+    ["setup", "19 First-run setup"],
+    ["manager", "20 Printer manager"],
+    ["dependency", "21 Target dependency"],
+    ["artwork-fallback", "22 Artwork fallback"],
+    ["update", "23 Update available"],
   ] as const;
   const query = new URLSearchParams(location.search);
   let state = $state(query.get("state") ?? "ready");
   const theme = query.get("theme") === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = theme;
 
-  const sources: CatalogSource[] = [
-    {
-      id: "fixture:source:fiberlogy-satin",
-      name: "Fiberlogy Easy PLA Satin @BBL X1C",
-      vendor: "Fiberlogy",
-      material: "PLA",
-      family: "Easy PLA",
-      variant: "Satin",
-      source_app: "orca_slicer",
-      source_kind: "factory_system",
-      compatible_printers: ["Bambu Lab H2C"],
+  // Synthetic demonstration catalog. Vendors and products are fictional or
+  // documentation-approved; nothing here is read from a real profile root.
+  function synthetic(
+    vendor: string,
+    product: string,
+    archetype: string,
+    type: string,
+    app: SourceApp = "orca_slicer",
+    kind: SourceKind = "factory_system",
+  ): CatalogSource {
+    const slug = `${vendor}-${product}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-");
+    return {
+      id: `fixture:source:${slug}`,
+      name: `${vendor} ${product}`,
+      vendor,
+      material: archetype,
+      material_archetype: archetype,
+      material_type: type,
+      family: product,
+      variant: type === "Standard" ? "" : type,
+      source_app: app,
+      source_kind: kind,
+      compatible_printers: ["Bambu Lab H2C 0.4 nozzle"],
       migration_status: "new",
       warnings: [],
-    },
+    };
+  }
+
+  const sources: CatalogSource[] = [
+    synthetic("Fiberlogy", "Easy PLA Satin", "PLA", "Standard"),
+    synthetic("Overture", "PLA", "PLA", "Standard"),
+    synthetic("Northstar", "PLA Aurora", "PLA", "Standard"),
+    synthetic("Fiberlogy", "PLA Matte", "PLA", "Matte"),
     {
-      id: "fixture:source:overture-matte",
-      name: "Overture Matte PLA @BBL H2C",
-      vendor: "Overture",
-      material: "PLA",
-      family: "Matte PLA",
-      variant: "Black",
-      source_app: "orca_slicer",
-      source_kind: "user_custom",
-      compatible_printers: ["Bambu Lab H2C"],
+      ...synthetic(
+        "Overture",
+        "Matte PLA",
+        "PLA",
+        "Matte",
+        "orca_slicer",
+        "user_custom",
+      ),
       migration_status: "conflicting",
       warnings: ["Existing destination settings differ"],
     },
+    synthetic("Northstar", "PLA Matte", "PLA", "Matte", "bambu_studio"),
+    synthetic("Fiberlogy", "Silk PLA", "PLA", "Silk"),
+    synthetic("Overture", "Silk PLA", "PLA", "Silk"),
+    synthetic("Overture", "Rapid PLA", "PLA", "High speed"),
+    synthetic("Northstar", "PLA HS", "PLA", "High speed", "bambu_studio"),
+    synthetic("Fiberlogy", "Easy PETG", "PETG", "Standard"),
+    synthetic("Overture", "PETG", "PETG", "Standard"),
+    synthetic(
+      "Overture",
+      "PETG HS",
+      "PETG",
+      "High speed",
+      "orca_slicer",
+      "user_custom",
+    ),
+    synthetic("Northstar", "PETG-CF", "PETG", "Carbon fiber", "bambu_studio"),
+    synthetic("Fiberlogy", "PCTG", "PCTG", "Standard"),
+    synthetic("Overture", "ABS", "ABS", "Standard"),
+    synthetic("Fiberlogy", "ABS", "ABS", "Standard"),
+    synthetic("Northstar", "ABS-GF", "ABS", "Glass fiber", "bambu_studio"),
+    synthetic("Overture", "ASA", "ASA", "Standard"),
+    synthetic("Fiberlogy", "ASA", "ASA", "Standard"),
+    synthetic("Overture", "TPU 95A", "TPU", "Shore 95A"),
+    synthetic("Northstar", "TPU for AMS", "TPU", "For AMS", "bambu_studio"),
+    synthetic("Fiberlogy", "PA12-CF", "PA", "Carbon fiber"),
+    synthetic("Northstar", "PA6-GF", "PA", "Glass fiber", "bambu_studio"),
+    synthetic("Overture", "PC", "PC", "Standard"),
   ];
+  const selectedSources = new Set([
+    sources[0].id,
+    sources[3].id,
+    sources[11].id,
+  ]);
 
   const printers: PrinterTarget[] = [
     {
@@ -89,7 +154,7 @@
       kind: "official",
       verified: true,
       artwork_available: false,
-      extruder_variants: ["Direct Drive Standard"],
+      extruder_variants: ["Direct Drive Standard", "Direct Drive High Flow"],
       nozzles: ["0.2", "0.4", "0.6", "0.8"].map((diameter) => ({
         id: `official:H2C:${diameter}`,
         diameter,
@@ -98,7 +163,24 @@
         supported: true,
       })),
     },
+    {
+      id: "official:P1S",
+      name: "Bambu Lab P1S",
+      code: "P1S",
+      kind: "official",
+      verified: true,
+      artwork_available: false,
+      extruder_variants: ["Direct Drive Standard"],
+      nozzles: ["0.2", "0.4", "0.6", "0.8"].map((diameter) => ({
+        id: `official:P1S:${diameter}`,
+        diameter,
+        printer_preset_name: `Bambu Lab P1S ${diameter} nozzle`,
+        selected: false,
+        supported: diameter !== "0.2",
+      })),
+    },
   ];
+  const enabledPrinters = new Set(["official:H2C", "official:P1S"]);
 
   const discovery: DiscoveryResponse = {
     source_root_ids: ["fixture-orca"],
@@ -205,9 +287,9 @@
       },
     ],
   };
-  const initial = createInitialState();
-  const selectedSources = new Set(sources.map((source) => source.id));
-  const selectedNozzles = { "official:H2C": new Set(["0.4", "0.6"]) };
+  const selectedNozzles = {
+    "official:H2C": new Set(["0.4", "0.6"]),
+  };
   const dependencyIssue = {
     id: "fixture-pet-cf-h2c",
     expected_name: "Generic PET-CF @BBL H2C",
@@ -226,12 +308,83 @@
     diagnostic:
       "Generic PET-CF @BBL H2C is not installed for Bambu Lab H2C 0.4 mm",
   };
-  const facets = sourceFacets(sources);
-  const fixtureSynchronization: SyncResult | null = [
+
+  const runStates = [
+    "run-idle",
+    "execution",
+    "commit-failed",
+    "monitoring",
     "timeout",
     "cloud",
     "ams",
-  ].includes(state)
+  ];
+  const workspaceStates = [
+    "ready",
+    "manufacturer-menu",
+    "presets",
+    "naming",
+    "printers",
+    "narrow",
+    "manager",
+    "dependency",
+    "artwork-fallback",
+    "update",
+  ];
+  const step = ["naming"].includes(state)
+    ? 1
+    : ["printers", "manager", "artwork-fallback"].includes(state)
+      ? 2
+      : 0;
+  const synced = ["timeout", "cloud", "ams"].includes(state);
+  const committed = ["monitoring", ...["timeout", "cloud", "ams"]].includes(
+    state,
+  );
+
+  // Fixture phase starts in milliseconds; they label a synthetic run only.
+  const localTimeline: PhaseMark<ExecutionPhase>[] = (
+    [
+      ["validating", 0],
+      ["closing_bambu", 140],
+      ["staging", 1240],
+      ["validating_output", 1610],
+      ["backing_up", 1830],
+      ["committing", 2420],
+      ["writing_receipt", 2690],
+      ["finished", 2860],
+    ] as const
+  )
+    .slice(
+      0,
+      state === "run-idle"
+        ? 0
+        : state === "execution"
+          ? 5
+          : state === "commit-failed"
+            ? 6
+            : 8,
+    )
+    .map(([phase, elapsed_ms]) => ({ phase, elapsed_ms }));
+  const syncTimeline: PhaseMark<SyncPhase>[] = committed
+    ? (
+        [
+          ["launching", 0],
+          ["monitoring", 2310],
+          ["finished", 9480],
+        ] as const
+      )
+        .slice(0, synced && state !== "timeout" ? 3 : 2)
+        .map(([phase, elapsed_ms]) => ({ phase, elapsed_ms }))
+    : [];
+  const rail = runRail({
+    local: localTimeline,
+    sync: syncTimeline,
+    executing: state === "execution",
+    localFailed: state === "commit-failed",
+    syncing: state === "monitoring",
+    syncExpected: true,
+    syncStopped: state === "timeout",
+  });
+  const fixtureSynchronization: SyncResult | null = synced
     ? {
         timed_out: state === "timeout",
         highest_evidence:
@@ -243,6 +396,25 @@
         observations: [],
       }
     : null;
+  const evidence: EvidenceLevel =
+    state === "ams"
+      ? "ams_verified"
+      : state === "cloud"
+        ? "cloud_id_assigned"
+        : state === "monitoring"
+          ? "loaded_by_bambu"
+          : "created_local";
+  const fixtureProgress: Record<string, OperationProgress> =
+    state === "run-idle" || state === "execution" || state === "commit-failed"
+      ? {}
+      : Object.fromEntries(
+          plan.operations
+            .filter((item) => item.action !== "block" && item.action !== "skip")
+            .map((item) => [
+              item.id,
+              { evidence, state: evidence as OperationState },
+            ]),
+        );
 
   function chooseState(next: string) {
     const url = new URL(location.href);
@@ -254,6 +426,11 @@
     if (state === "naming") {
       document
         .querySelector<HTMLDetailsElement>(".advanced-rules")
+        ?.setAttribute("open", "");
+    }
+    if (state === "manufacturer-menu") {
+      document
+        .querySelector<HTMLDetailsElement>("details.vendor-menu")
         ?.setAttribute("open", "");
     }
   });
@@ -299,18 +476,14 @@
         : discovery}
       selectedAccountId={state === "no-account" ? null : "fixture-account"}
       {theme}
-      busy={false}
       activeView={state === "plan" || state === "conflict"
         ? "plan"
         : state === "restore"
           ? "restore"
-          : ["execution", "monitoring", "timeout", "cloud", "ams"].includes(
-                state,
-              )
+          : runStates.includes(state)
             ? "activity"
             : "setup"}
       planCount={plan.operations.length}
-      onRefresh={() => {}}
       onAccountChanged={() => {}}
       onThemeChanged={() => {}}
     />
@@ -366,38 +539,54 @@
             eligible for local migration.
           </p>
         </div>
-      {:else if ["ready", "naming", "narrow", "manager", "dependency", "artwork-fallback", "update"].includes(state)}
+      {:else if workspaceStates.includes(state)}
         <div class="workspace-view setup-view">
-          <div class="routing-bench" aria-label="Filament migration route">
-            <article class="route-rail source-rail">
-              <SourceTable
+          <h1 class="sr-only">Migration workspace</h1>
+          <div class="route-shell" aria-label="Migration setup steps">
+            <StepRail
+              id={STEP_IDS[0]}
+              index={0}
+              class="source-rail"
+              title={WORKSPACE_STEPS[0].title}
+              description={WORKSPACE_STEPS[0].description}
+              icon={WORKSPACE_STEPS[0].icon}
+              count={selectedSources.size}
+              unit="selected"
+              open={step === 0}
+              done={step > 0}
+              onOpen={() => {}}
+            >
+              <FilamentPicker
                 {sources}
+                filters={defaultFilters()}
                 selectedIds={selectedSources}
-                totalCount={sources.length}
+                initialPath={state === "presets" ? ["PLA", "Matte"] : []}
+                {discovery}
+                onFiltersChanged={() => {}}
                 onToggle={() => {}}
-                onSelectVisible={() => {}}
+                onSelect={() => {}}
                 onClearSelection={() => {}}
-              >
-                {#snippet filters()}
-                  <FilterBar
-                    filters={initial.filters}
-                    {facets}
-                    onFiltersChanged={() => {}}
-                    onReset={() => {}}
-                  />
-                {/snippet}
-                {#snippet tools()}
-                  <FilterTools
-                    filters={initial.filters}
-                    onFiltersChanged={() => {}}
-                  />
-                {/snippet}
-              </SourceTable>
-            </article>
-            <div class="route-thread" aria-hidden="true">
-              <span></span><ArrowRight size={15} />
-            </div>
-            <article class="route-rail naming-rail">
+                onSavePreset={() => {}}
+                onLoadPreset={() => {}}
+                onDeletePreset={() => {}}
+                onRefresh={() => {}}
+                onAddSource={() => {}}
+                onRemoveSource={() => {}}
+              />
+            </StepRail>
+            <StepRail
+              id={STEP_IDS[1]}
+              index={1}
+              class="naming-rail"
+              title={WORKSPACE_STEPS[1].title}
+              description={WORKSPACE_STEPS[1].description}
+              icon={WORKSPACE_STEPS[1].icon}
+              count={2}
+              unit="outputs"
+              open={step === 1}
+              done={step > 1}
+              onOpen={() => {}}
+            >
               <NamingPanel
                 presetTemplate={"{clean_name} - {printer_code}"}
                 amsTemplate={"{vendor} {material} {clean_name}"}
@@ -426,11 +615,20 @@
                 previewSubject={`${sources[0].name} on Bambu Lab H2C 0.4 mm`}
                 onTemplatesChanged={() => {}}
               />
-            </article>
-            <div class="route-thread destination" aria-hidden="true">
-              <span></span><Route size={15} />
-            </div>
-            <article class="route-rail destination-rail">
+            </StepRail>
+            <StepRail
+              id={STEP_IDS[2]}
+              index={2}
+              class="destination-rail"
+              title={WORKSPACE_STEPS[2].title}
+              description={WORKSPACE_STEPS[2].description}
+              icon={WORKSPACE_STEPS[2].icon}
+              count={2}
+              unit="targets"
+              open={step === 2}
+              done={false}
+              onOpen={() => {}}
+            >
               <TargetPanel
                 catalogId="fixture-targets"
                 printers={state === "artwork-fallback"
@@ -439,29 +637,25 @@
                       artwork_available: true,
                     }))
                   : printers}
-                enabledPrinterIds={new Set(["official:H2C"])}
+                enabledPrinterIds={enabledPrinters}
                 {selectedNozzles}
                 onManage={() => {}}
                 onNozzleToggle={() => {}}
                 onSelectAll={() => {}}
               />
-            </article>
+            </StepRail>
           </div>
-          <div class="setup-actionbar">
-            <div class="setup-counts">
-              <span><strong>2</strong> sources</span><span
-                ><strong>2</strong> nozzles</span
-              ><span><strong>2</strong> outputs</span>
-            </div>
-            <p class="setup-safety">
-              <Lock size={13} /> Nothing is written until you review and commit the
-              plan.
-            </p>
-            <span class="plan-readiness ready">Ready to build</span><button
-              class="primary-button"
-              type="button">Build migration plan</button
-            >
-          </div>
+          <RouteBar
+            {step}
+            steps={WORKSPACE_STEPS}
+            sources={selectedSources.size}
+            targets={2}
+            outputs={2}
+            ready={true}
+            readinessLabel={step === 2 ? "Ready to build" : "Ready to continue"}
+            onBack={() => {}}
+            onContinue={() => {}}
+          />
         </div>
       {:else if state === "plan" || state === "conflict"}
         <div class="workspace-view">
@@ -494,57 +688,38 @@
           />
         </div>
       {:else}
-        <div class="workspace-view document-view">
-          <RunStatus
-            result={state === "execution" ? null : result}
-            synchronization={fixtureSynchronization}
-            syncing={state === "monitoring"}
-            localPhase={state === "execution" ? "backing_up" : "finished"}
-            syncPhase={state === "monitoring"
-              ? "monitoring"
-              : ["timeout", "cloud", "ams"].includes(state)
-                ? "finished"
-                : null}
-            onRetrySync={() => {}}
-            onOpenRestore={() => {}}
-          />
-          <RunProgress
-            {plan}
-            running={state === "execution" || state === "monitoring"}
-            cancellable={state === "monitoring"}
-            progress={Object.fromEntries(
-              plan.operations
-                .filter(
-                  (item) => item.action !== "block" && item.action !== "skip",
-                )
-                .map((item) => [
-                  item.id,
-                  {
-                    evidence:
-                      state === "ams"
-                        ? "ams_verified"
-                        : state === "cloud"
-                          ? "cloud_id_assigned"
-                          : state === "monitoring"
-                            ? "loaded_by_bambu"
-                            : "created_local",
-                    state:
-                      state === "ams"
-                        ? "ams_verified"
-                        : state === "cloud"
-                          ? "cloud_id_assigned"
-                          : state === "monitoring"
-                            ? "loaded_by_bambu"
-                            : "created_local",
-                  },
-                ]),
-            )}
-          />
-          {#if ["timeout", "cloud", "ams"].includes(state)}<ResultSummary
-              {result}
-              synchronization={fixtureSynchronization}
-              onOpenSupport={async () => {}}
-            />{/if}
+        <div id="activity-view" class="workspace-view document-view">
+          <div class="section-head">
+            <h2>Follow every step</h2>
+            <p>Local execution and cloud-facing evidence stay separate.</p>
+          </div>
+          <div class="run-layout">
+            <RunRail {rail} />
+            <div class="run-main">
+              <RunStatus
+                result={committed ? result : null}
+                executing={state === "execution"}
+                localError={state === "commit-failed"
+                  ? "Committing the staged files failed. The journal restored every changed path."
+                  : null}
+                synchronization={fixtureSynchronization}
+                syncing={state === "monitoring"}
+                onRetrySync={() => {}}
+                onOpenRestore={() => {}}
+              />
+              <RunProgress
+                plan={state === "run-idle" ? null : plan}
+                running={state === "execution" || state === "monitoring"}
+                cancellable={state === "monitoring"}
+                progress={fixtureProgress}
+              />
+              {#if synced}<ResultSummary
+                  {result}
+                  synchronization={fixtureSynchronization}
+                  onOpenSupport={async () => {}}
+                />{/if}
+            </div>
+          </div>
         </div>
       {/if}
     </main>
@@ -569,7 +744,7 @@
         open={true}
         catalogId="fixture-targets"
         {printers}
-        enabledPrinterIds={new Set(["official:H2C"])}
+        enabledPrinterIds={enabledPrinters}
         {selectedNozzles}
         onSave={() => {}}
         onCancel={() => {}}
