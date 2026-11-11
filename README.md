@@ -20,9 +20,9 @@
 
 ## Product showcase
 
-https://github.com/user-attachments/assets/b0ad00a4-eca3-4415-a858-2d15bdb434c0
+https://github.com/user-attachments/assets/92cafb6c-3c00-48e3-aed0-8e0e4b72615d
 
-Watch the 61-second showcase with narration and music. It shows the actual Windows desktop app in light mode, using a temporary demonstration workspace for local profile creation. Bambu Studio synchronization and your printer or AMS check come next. [How this demo was made](docs/marketing/AI-DISCLOSURE.md#product-facing-showcase-v4).
+Watch the 61-second showcase with narration and music. It shows the actual Windows desktop app in light mode, using a temporary demonstration workspace for local profile creation. Bambu Studio synchronization and your printer or AMS check come next. [How this demo was made](docs/marketing/AI-DISCLOSURE.md#product-facing-showcase-v5).
 
 ## Keep the profiles you already tuned
 
@@ -65,6 +65,12 @@ Choose OrcaSlicer, Bambu Studio, or both as sources. Select factory or custom pr
 ![Spool Ledger cataloging eligible filament presets](docs/screenshots/inventory-loading.png)
 
 Spool Ledger discovers supported profiles and reports real loaded and total counts. Source files are not changed while the inventory is built.
+
+### Choose filament profiles
+
+![Spool Ledger workspace with filament profiles grouped by material](docs/screenshots/workspace-materials.png)
+
+The workspace moves through three steps: filament profiles, naming, and printers and nozzles. Start with a material, narrow it to a type such as Matte or Carbon fiber, then pick the exact presets. Filter by source, manufacturer, compatible printer, or migration status at any level.
 
 ### Frozen plan review
 
