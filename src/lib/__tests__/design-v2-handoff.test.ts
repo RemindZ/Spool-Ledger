@@ -235,6 +235,7 @@ describe("Spool Ledger design v2 handoff", () => {
     }
     for (const name of [
       "inventory-loading.png",
+      "workspace-materials.png",
       "setup-workspace.png",
       "review-plan.png",
       "run-evidence.png",
@@ -258,10 +259,10 @@ describe("Spool Ledger design v2 handoff", () => {
     expect(fixture).not.toMatch(/Polymaker|Sunlu/i);
   });
 
-  it("embeds the V4 showcase using its permanent GitHub attachment URL", () => {
+  it("embeds the V5 showcase using its permanent GitHub attachment URL", () => {
     const readme = read("README.md").replaceAll("\r\n", "\n");
     expect(readme).toContain(
-      "\n\nhttps://github.com/user-attachments/assets/b0ad00a4-eca3-4415-a858-2d15bdb434c0\n\n",
+      "\n\nhttps://github.com/user-attachments/assets/92cafb6c-3c00-48e3-aed0-8e0e4b72615d\n\n",
     );
     expect(readme).toContain("61-second showcase");
     expect(readme).toContain("temporary demonstration workspace");

@@ -7,9 +7,20 @@
 - These files do not contain a human speaker recording.
 - Use and distribution remain subject to the terms of the ElevenLabs account used for generation.
 
+## Product-facing showcase V5
+
+- The 61-second showcase embedded in the README is V5. It replaces the app footage with a fresh native capture of the 2026-10-02 redesign and reuses the V4 balanced narration, music and captions unchanged, because the script still describes the workflow accurately. The outro reads "Free and open source" and "Try Spool Ledger 1.0".
+- Narration was generated with ElevenLabs `eleven_multilingual_v2`; the instrumental score was generated with ElevenLabs `music_v2`. These are AI-generated audio assets, not a human speaker recording. Use and distribution remain subject to the terms of the account used for generation.
+- Native screen capture records the actual Spool Ledger Windows desktop debug build in light mode, not a browser fixture, running in its debug-only temporary demonstration workspace. Editing includes close crops, adjusted playback speed, and a short hold on the genuine local result; this is not a real-time speed benchmark.
+- The workspace held copies of public OrcaSlicer factory presets from Overture, COEX, addnorth and eSUN with their inheritance bases, plus actual printer artwork from a copied installed catalog. Overture Matte PLA and Overture PLA Pro were selected for a Bambu Lab H2C 0.4 mm nozzle. The real application transaction created six local files for two profiles and preserved the existing destination profile byte for byte. The step times shown are the app's backend-measured phase times for that run.
+- Protected live-profile roots were hash-checked before and after capture and were unchanged. Personal paths and account details are not shown.
+- The highest demonstrated evidence is `created_local`. Bambu Studio synchronization and human printer or AMS checks are next steps, not completed outcomes. No Bambu Studio automation or cloud/AMS verification is shown.
+- The supplied production logo is used without redrawing. No Blender assets were used.
+- The [GitHub-hosted video](https://github.com/user-attachments/assets/92cafb6c-3c00-48e3-aed0-8e0e4b72615d) matches the verified V5 file byte-for-byte: SHA-256 `8a15e06ce66039bdb866cb08d5ee31a1809af348278c3198b2eaeecb4a523428`.
+
 ## Product-facing showcase V4
 
-- The 61-second showcase embedded in the README is the balanced-music V4 cut, with the outro address updated to `github.com/RemindZ/Spool-Ledger`. Only the final 9.5 seconds were re-rendered for that URL change; the preceding footage and complete balanced audio stream were preserved.
+- The 61-second showcase previously embedded in the README is the balanced-music V4 cut, with the outro address updated to `github.com/RemindZ/Spool-Ledger`. Only the final 9.5 seconds were re-rendered for that URL change; the preceding footage and complete balanced audio stream were preserved.
 - Narration was generated with ElevenLabs `eleven_multilingual_v2`; the instrumental score was generated with ElevenLabs `music_v2`. These are AI-generated audio assets, not a human speaker recording. Use and distribution remain subject to the terms of the account used for generation.
 - Native screen capture records the actual Spool Ledger Windows desktop app in light mode, not a browser fixture. Editing includes close crops, adjusted playback speed, and a short hold on the genuine local result; this is not a real-time speed benchmark.
 - The temporary-workspace demonstration uses copied Overture Matte PLA and Overture PLA Pro factory presets and actual printer artwork from a copied installed catalog. The real application transaction created six local files for two profiles. Protected live-profile roots remained unchanged, and personal paths and account details were obscured.
