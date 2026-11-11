@@ -1,3 +1,4 @@
+import type { PhaseMark } from "./run-rail";
 import type {
   CatalogSource,
   ConflictDecision,
@@ -20,7 +21,8 @@ import type {
   SyncResult,
 } from "./types";
 
-export type Theme = "system" | "light" | "dark";
+export type { Theme } from "./theme";
+import type { Theme } from "./theme";
 export type AppPhase =
   | "idle"
   | "discovering"
@@ -31,16 +33,34 @@ export type AppPhase =
   | "complete"
   | "error";
 
+export type SourceKey = `${SourceApp}:${SourceKind}`;
+
+export const SOURCE_KEYS: readonly SourceKey[] = [
+  "orca_slicer:factory_system",
+  "orca_slicer:user_custom",
+  "bambu_studio:factory_system",
+  "bambu_studio:user_custom",
+];
+
+export const MIGRATION_STATUSES: readonly MigrationStatus[] = [
+  "new",
+  "already_migrated",
+  "incomplete",
+  "conflicting",
+  "unsupported",
+];
+
+/**
+ * Picker filters. Sources are the checked app and kind pairs. Manufacturers,
+ * compatible printers and migration statuses store the unchecked values, so
+ * values that appear in a later catalog start checked.
+ */
 export interface SourceFilters {
   search: string;
-  sourceApps: Set<SourceApp>;
-  sourceKinds: Set<SourceKind>;
-  vendors: Set<string>;
-  materials: Set<string>;
-  families: Set<string>;
-  variants: Set<string>;
-  compatiblePrinters: Set<string>;
-  migrationStatuses: Set<MigrationStatus>;
+  sources: Set<SourceKey>;
+  hiddenVendors: Set<string>;
+  hiddenPrinters: Set<string>;
+  hiddenStatuses: Set<MigrationStatus>;
   selectedOnly: boolean;
 }
 
@@ -91,6 +111,10 @@ export interface AppState {
   conflictDecisions: ConflictDecision[];
   plan: MigrationPlan | null;
   executionPhase: ExecutionPhase | null;
+  /** Backend phase starts for the Run & verify rail; never a UI timer. */
+  executionTimeline: PhaseMark<ExecutionPhase>[];
+  executionFailed: boolean;
+  syncTimeline: PhaseMark<SyncPhase>[];
   progress: Record<string, OperationProgress>;
   result: LocalRunResult | null;
   synchronization: SyncResult | null;
@@ -122,7 +146,7 @@ export type AppAction =
   | { type: "source_toggled"; sourceId: string }
   | { type: "sources_removed"; sourceIds: Set<string> }
   | { type: "filters_changed"; filters: Partial<SourceFilters> }
-  | { type: "select_visible"; selected: boolean }
+  | { type: "sources_selected"; sourceIds: string[]; selected: boolean }
   | { type: "clear_selection" }
   | { type: "nozzle_toggled"; printerId: string; diameter: string }
   | { type: "select_printer_nozzles"; printerId: string; selected: boolean }
@@ -135,7 +159,7 @@ export type AppAction =
   | { type: "planning_stopped" }
   | { type: "plan_built"; plan: MigrationPlan }
   | { type: "execution_started" }
-  | { type: "execution_phase"; phase: ExecutionPhase }
+  | { type: "execution_phase"; phase: ExecutionPhase; elapsedMs: number }
   | {
       type: "progress_updated";
       operationId: string;
@@ -144,7 +168,7 @@ export type AppAction =
     }
   | { type: "execution_completed"; result: LocalRunResult }
   | { type: "synchronization_started" }
-  | { type: "synchronization_phase"; phase: SyncPhase }
+  | { type: "synchronization_phase"; phase: SyncPhase; elapsedMs: number }
   | { type: "synchronization_completed"; result: SyncResult }
   | { type: "synchronization_failed"; message: string }
   | { type: "ams_verified"; operationIds: string[] };
@@ -152,19 +176,35 @@ export type AppAction =
 const DEFAULT_PRESET_TEMPLATE = "{clean_name} - {printer_code}";
 const DEFAULT_AMS_TEMPLATE = "{vendor} {material} {clean_name}";
 
-function emptyFilters(): SourceFilters {
+export function defaultFilters(): SourceFilters {
   return {
     search: "",
-    sourceApps: new Set(),
-    sourceKinds: new Set(),
-    vendors: new Set(),
-    materials: new Set(),
-    families: new Set(),
-    variants: new Set(),
-    compatiblePrinters: new Set(),
-    migrationStatuses: new Set(),
+    sources: new Set(SOURCE_KEYS),
+    hiddenVendors: new Set(),
+    hiddenPrinters: new Set(),
+    hiddenStatuses: new Set(),
     selectedOnly: false,
   };
+}
+
+export function sourceKey(source: CatalogSource): SourceKey {
+  return `${source.source_app}:${source.source_kind}`;
+}
+
+/** Source, manufacturer, printer and status filters. Search and path are picker-local. */
+export function passesSourceFilters(
+  source: CatalogSource,
+  filters: SourceFilters,
+): boolean {
+  return (
+    filters.sources.has(sourceKey(source)) &&
+    !filters.hiddenVendors.has(source.vendor) &&
+    !filters.hiddenStatuses.has(source.migration_status) &&
+    (filters.hiddenPrinters.size === 0 ||
+      source.compatible_printers.some(
+        (printer) => !filters.hiddenPrinters.has(printer),
+      ))
+  );
 }
 
 export function createInitialState(
@@ -188,7 +228,7 @@ export function createInitialState(
         ([printer, nozzles]) => [printer, new Set(nozzles)],
       ),
     ),
-    filters: preferences?.filters ?? emptyFilters(),
+    filters: preferences?.filters ?? defaultFilters(),
     presetTemplate: preferences?.presetTemplate ?? DEFAULT_PRESET_TEMPLATE,
     amsTemplate: preferences?.amsTemplate ?? DEFAULT_AMS_TEMPLATE,
     presetRules: preferences?.presetRules ?? [],
@@ -198,6 +238,9 @@ export function createInitialState(
     conflictDecisions: [],
     plan: null,
     executionPhase: null,
+    executionTimeline: [],
+    executionFailed: false,
+    syncTimeline: [],
     progress: {},
     result: null,
     synchronization: null,
@@ -216,6 +259,9 @@ function invalidatePlan(
     plan: null,
     conflictDecisions: preserveConflictDecisions ? state.conflictDecisions : [],
     executionPhase: null,
+    executionTimeline: [],
+    executionFailed: false,
+    syncTimeline: [],
     result: null,
     progress: {},
     synchronization: null,
@@ -290,7 +336,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
     case "failed":
-      return { ...state, phase: "error", error: action.message };
+      return {
+        ...state,
+        phase: "error",
+        executionFailed: state.executionFailed || state.phase === "executing",
+        error: action.message,
+      };
     case "theme_changed":
       return { ...state, theme: action.theme };
     case "account_selected": {
@@ -348,8 +399,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         setupComplete: true,
         filters: {
           ...state.filters,
-          sourceApps: new Set(action.sourceApps),
-          sourceKinds: new Set(action.sourceKinds),
+          sources: sourceKeysFor(action.sourceApps, action.sourceKinds),
         },
         ...selection,
       });
@@ -382,11 +432,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       });
     case "filters_changed":
       return { ...state, filters: { ...state.filters, ...action.filters } };
-    case "select_visible": {
+    case "sources_selected": {
+      const available = new Set(state.sources.map((source) => source.id));
       const selectedSourceIds = new Set(state.selectedSourceIds);
-      for (const source of visibleSources(state)) {
-        if (action.selected) selectedSourceIds.add(source.id);
-        else selectedSourceIds.delete(source.id);
+      for (const sourceId of action.sourceIds) {
+        if (!available.has(sourceId)) continue;
+        if (action.selected) selectedSourceIds.add(sourceId);
+        else selectedSourceIds.delete(sourceId);
       }
       return invalidatePlan({ ...state, selectedSourceIds });
     }
@@ -462,6 +514,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: "executing",
         progress: {},
         executionPhase: null,
+        executionTimeline: [],
+        executionFailed: false,
+        syncTimeline: [],
         result: null,
         synchronization: null,
         syncPhase: null,
@@ -469,7 +524,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         error: null,
       };
     case "execution_phase":
-      return { ...state, executionPhase: action.phase };
+      return {
+        ...state,
+        executionPhase: action.phase,
+        executionTimeline: [
+          ...state.executionTimeline,
+          { phase: action.phase, elapsed_ms: action.elapsedMs },
+        ],
+      };
     case "progress_updated":
       return {
         ...state,
@@ -494,10 +556,18 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: "synchronizing",
         synchronization: null,
         syncPhase: null,
+        syncTimeline: [],
         syncError: null,
       };
     case "synchronization_phase":
-      return { ...state, syncPhase: action.phase };
+      return {
+        ...state,
+        syncPhase: action.phase,
+        syncTimeline: [
+          ...state.syncTimeline,
+          { phase: action.phase, elapsed_ms: action.elapsedMs },
+        ],
+      };
     case "synchronization_completed": {
       const progress = { ...state.progress };
       for (const observation of action.result.observations) {
@@ -535,155 +605,20 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   }
 }
 
-function includesCaseInsensitive(
-  values: Set<string>,
-  candidate: string,
-): boolean {
-  if (values.size === 0) return true;
-  const normalized = candidate.toLocaleLowerCase();
-  return [...values].some((value) => value.toLocaleLowerCase() === normalized);
-}
-
-export interface FilterFacet {
-  value: string;
-  count: number;
-}
-
-export interface SourceFacets {
-  vendors: FilterFacet[];
-  materials: FilterFacet[];
-  families: FilterFacet[];
-  variants: FilterFacet[];
-  compatiblePrinters: FilterFacet[];
-}
-
-export interface ActiveFilterChip {
-  id: string;
-  label: string;
-  dimension: keyof SourceFilters;
-  value: string;
-}
-
-export function sourceFacets(sources: CatalogSource[]): SourceFacets {
-  const facet = (values: string[]): FilterFacet[] => {
-    const counts = new Map<string, number>();
-    for (const value of values.filter(Boolean))
-      counts.set(value, (counts.get(value) ?? 0) + 1);
-    return [...counts]
-      .map(([value, count]) => ({ value, count }))
-      .sort((left, right) => left.value.localeCompare(right.value));
-  };
-  return {
-    vendors: facet(sources.map((source) => source.vendor)),
-    materials: facet(sources.map((source) => source.material)),
-    families: facet(sources.map((source) => source.family)),
-    variants: facet(sources.map((source) => source.variant)),
-    compatiblePrinters: facet(
-      sources.flatMap((source) => source.compatible_printers),
-    ),
-  };
-}
-
-const CHIP_LABELS: Record<string, string> = {
-  orca_slicer: "OrcaSlicer",
-  bambu_studio: "Bambu Studio",
-  factory_system: "Factory / system",
-  user_custom: "User / custom",
-  already_migrated: "Already migrated",
-  new: "New",
-  incomplete: "Incomplete",
-  conflicting: "Conflicting",
-  unsupported: "Unsupported",
-};
-
-export function activeFilterChips(filters: SourceFilters): ActiveFilterChip[] {
-  const chips: ActiveFilterChip[] = [];
-  if (filters.search) {
-    chips.push({
-      id: "search",
-      label: `Search: ${filters.search}`,
-      dimension: "search",
-      value: "",
-    });
-  }
-  for (const dimension of [
-    "sourceApps",
-    "sourceKinds",
-    "vendors",
-    "materials",
-    "families",
-    "variants",
-    "compatiblePrinters",
-    "migrationStatuses",
-  ] as const) {
-    for (const value of filters[dimension]) {
-      chips.push({
-        id: `${dimension}:${value}`,
-        label: CHIP_LABELS[value] ?? value,
-        dimension,
-        value,
-      });
-    }
-  }
-  if (filters.selectedOnly) {
-    chips.push({
-      id: "selectedOnly",
-      label: "Selected only",
-      dimension: "selectedOnly",
-      value: "true",
-    });
-  }
-  return chips;
-}
-
-export function resetFilters(): SourceFilters {
-  return emptyFilters();
-}
-
-export function visibleSources(state: AppState): CatalogSource[] {
-  const filters = state.filters;
-  const search = filters.search.trim().toLocaleLowerCase();
-  return state.sources.filter((source) => {
-    if (filters.selectedOnly && !state.selectedSourceIds.has(source.id))
-      return false;
-    if (filters.sourceApps.size && !filters.sourceApps.has(source.source_app))
-      return false;
-    if (
-      filters.sourceKinds.size &&
-      !filters.sourceKinds.has(source.source_kind)
-    )
-      return false;
-    if (!includesCaseInsensitive(filters.vendors, source.vendor)) return false;
-    if (!includesCaseInsensitive(filters.materials, source.material))
-      return false;
-    if (!includesCaseInsensitive(filters.families, source.family)) return false;
-    if (!includesCaseInsensitive(filters.variants, source.variant))
-      return false;
-    if (
-      filters.migrationStatuses.size &&
-      !filters.migrationStatuses.has(source.migration_status)
-    ) {
-      return false;
-    }
-    if (
-      filters.compatiblePrinters.size &&
-      !source.compatible_printers.some((printer) =>
-        includesCaseInsensitive(filters.compatiblePrinters, printer),
-      )
-    ) {
-      return false;
-    }
-    return (
-      !search ||
-      [
-        source.name,
-        source.vendor,
-        source.material,
-        source.family,
-        source.variant,
-      ].some((value) => value.toLocaleLowerCase().includes(search))
-    );
-  });
+/** First-run source choices; an empty set means every value of that dimension. */
+export function sourceKeysFor(
+  apps: Set<SourceApp>,
+  kinds: Set<SourceKind>,
+): Set<SourceKey> {
+  return new Set(
+    SOURCE_KEYS.filter((key) => {
+      const [app, kind] = key.split(":") as [SourceApp, SourceKind];
+      return (
+        (apps.size === 0 || apps.has(app)) &&
+        (kinds.size === 0 || kinds.has(kind))
+      );
+    }),
+  );
 }
 
 export function selectedNozzleRequests(state: AppState): NozzleSelection[] {
@@ -850,71 +785,73 @@ export function persistFilterPresets(
 function serializeFilters(filters: SourceFilters): Record<string, unknown> {
   return {
     search: filters.search,
-    source_apps: [...filters.sourceApps].sort(),
-    source_kinds: [...filters.sourceKinds].sort(),
-    vendors: [...filters.vendors].sort(),
-    materials: [...filters.materials].sort(),
-    families: [...filters.families].sort(),
-    variants: [...filters.variants].sort(),
-    compatible_printers: [...filters.compatiblePrinters].sort(),
-    migration_statuses: [...filters.migrationStatuses].sort(),
+    sources: SOURCE_KEYS.filter((key) => filters.sources.has(key)),
+    hidden_vendors: [...filters.hiddenVendors].sort(),
+    hidden_printers: [...filters.hiddenPrinters].sort(),
+    hidden_statuses: [...filters.hiddenStatuses].sort(),
     selected_only: filters.selectedOnly,
   };
+}
+
+function isSourceKey(value: string): value is SourceKey {
+  return (SOURCE_KEYS as readonly string[]).includes(value);
+}
+
+function isMigrationStatus(value: string): value is MigrationStatus {
+  return (MIGRATION_STATUSES as readonly string[]).includes(value);
 }
 
 function deserializeFilters(value: unknown): SourceFilters | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
+  const search = typeof record.search === "string" ? record.search : "";
+  const selectedOnly = record.selected_only === true;
+  const sources = stringArray(record.sources);
+  if (sources) {
+    const hiddenVendors = stringArray(record.hidden_vendors);
+    const hiddenPrinters = stringArray(record.hidden_printers);
+    const hiddenStatuses = stringArray(record.hidden_statuses);
+    if (!hiddenVendors || !hiddenPrinters || !hiddenStatuses) return null;
+    return {
+      search,
+      sources: new Set(sources.filter(isSourceKey)),
+      hiddenVendors: new Set(hiddenVendors),
+      hiddenPrinters: new Set(hiddenPrinters),
+      hiddenStatuses: new Set(hiddenStatuses.filter(isMigrationStatus)),
+      selectedOnly,
+    };
+  }
+  // Earlier include-list filters keep their source and status choices. Vendor
+  // and printer include lists cannot be inverted without the catalog, so they
+  // reset to every value checked.
   const sourceApps = stringArray(record.source_apps);
   const sourceKinds = stringArray(record.source_kinds);
-  const vendors = stringArray(record.vendors);
-  const materials = stringArray(record.materials);
-  const families = stringArray(record.families);
-  const variants = stringArray(record.variants);
-  const compatiblePrinters = stringArray(record.compatible_printers);
-  const migrationStatuses = stringArray(record.migration_statuses);
-  if (
-    !sourceApps ||
-    !sourceKinds ||
-    !vendors ||
-    !materials ||
-    !families ||
-    !variants ||
-    !compatiblePrinters ||
-    !migrationStatuses
-  )
-    return null;
+  const statuses = stringArray(record.migration_statuses);
+  if (!sourceApps || !sourceKinds || !statuses) return null;
+  const included = new Set(statuses.filter(isMigrationStatus));
   return {
-    search: typeof record.search === "string" ? record.search : "",
-    sourceApps: new Set(
-      sourceApps.filter(
-        (item): item is SourceApp =>
-          item === "orca_slicer" || item === "bambu_studio",
+    ...defaultFilters(),
+    search,
+    sources: sourceKeysFor(
+      new Set(
+        sourceApps.filter(
+          (item): item is SourceApp =>
+            item === "orca_slicer" || item === "bambu_studio",
+        ),
+      ),
+      new Set(
+        sourceKinds.filter(
+          (item): item is SourceKind =>
+            item === "factory_system" || item === "user_custom",
+        ),
       ),
     ),
-    sourceKinds: new Set(
-      sourceKinds.filter(
-        (item): item is SourceKind =>
-          item === "factory_system" || item === "user_custom",
-      ),
+    hiddenStatuses: new Set(
+      included.size
+        ? MIGRATION_STATUSES.filter((status) => !included.has(status))
+        : [],
     ),
-    vendors: new Set(vendors),
-    materials: new Set(materials),
-    families: new Set(families),
-    variants: new Set(variants),
-    compatiblePrinters: new Set(compatiblePrinters),
-    migrationStatuses: new Set(
-      migrationStatuses.filter((item): item is MigrationStatus =>
-        [
-          "new",
-          "already_migrated",
-          "incomplete",
-          "conflicting",
-          "unsupported",
-        ].includes(item),
-      ),
-    ),
-    selectedOnly: record.selected_only === true,
+    selectedOnly,
   };
 }
 

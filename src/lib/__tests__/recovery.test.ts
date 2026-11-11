@@ -8,9 +8,10 @@ import {
   within,
 } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ExecutionPhases from "../components/ExecutionPhases.svelte";
 import RestorePanel from "../components/RestorePanel.svelte";
+import RunRail from "../components/RunRail.svelte";
 import RunStatus from "../components/RunStatus.svelte";
+import { runRail } from "../run-rail";
 import type { LocalRunResult } from "../types";
 
 const runResult = (committed: number): LocalRunResult => ({
@@ -49,8 +50,6 @@ describe("RunStatus", () => {
           highest_evidence: "created_local",
           observations: [],
         },
-        localPhase: "finished",
-        syncPhase: "finished",
         onRetrySync,
         onOpenRestore,
       },
@@ -79,7 +78,6 @@ describe("RunStatus", () => {
       props: {
         result: runResult(1),
         syncError: "Bambu Studio did not start",
-        localPhase: "finished",
       },
     });
 
@@ -101,8 +99,6 @@ describe("RunStatus", () => {
       props: {
         result: runResult(2),
         syncing: true,
-        localPhase: "finished",
-        syncPhase: "monitoring",
       },
     });
 
@@ -123,8 +119,6 @@ describe("RunStatus", () => {
           highest_evidence: "cloud_id_assigned",
           observations: [],
         },
-        localPhase: "finished",
-        syncPhase: "finished",
       },
     });
 
@@ -140,7 +134,7 @@ describe("RunStatus", () => {
 
   it("uses singular grammar for one committed local file", () => {
     render(RunStatus, {
-      props: { result: runResult(1), localPhase: "finished" },
+      props: { result: runResult(1) },
     });
 
     expect(
@@ -149,9 +143,37 @@ describe("RunStatus", () => {
     expect(screen.getByText("run-1")).toBeInTheDocument();
   });
 
+  it("waits for a committed run before anything starts", () => {
+    render(RunStatus, { props: { result: null } });
+
+    expect(
+      screen.getByRole("heading", { name: "Waiting for a committed run" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No committed run")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("reports a failed commit without claiming any committed files", () => {
+    render(RunStatus, {
+      props: {
+        result: null,
+        localError: "Staged output failed validation.",
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Local transaction stopped" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Staged output failed validation. Review the plan, then commit again.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("describes a running local transaction without actions", () => {
     render(RunStatus, {
-      props: { result: null, localPhase: "backing_up" },
+      props: { result: null, executing: true },
     });
 
     expect(
@@ -161,74 +183,95 @@ describe("RunStatus", () => {
   });
 });
 
-describe("ExecutionPhases", () => {
-  it("summarizes the active step and keeps the full list collapsed", () => {
-    const { container } = render(ExecutionPhases, {
+describe("RunRail", () => {
+  const local = [
+    { phase: "validating", elapsed_ms: 0 },
+    { phase: "closing_bambu", elapsed_ms: 120 },
+    { phase: "staging", elapsed_ms: 300 },
+  ] as const;
+
+  it("shows the idle rail before a transaction", () => {
+    const { container } = render(RunRail, {
       props: {
-        localPhase: "staging",
-        syncPhase: null,
-        syncExpected: true,
+        rail: runRail({
+          local: [],
+          sync: [],
+          executing: false,
+          localFailed: false,
+          syncing: false,
+          syncExpected: true,
+          syncStopped: false,
+        }),
       },
     });
 
+    expect(screen.getByText("No transaction started")).toBeInTheDocument();
+    expect(container.querySelectorAll(".phase")).toHaveLength(10);
     expect(
-      screen.getByText("Step 3 of 11: Stage local profiles"),
-    ).toBeInTheDocument();
-    expect(container.querySelectorAll(".phase-segments > i")).toHaveLength(11);
-    expect(
-      container.querySelector("details.phase-details"),
-    ).not.toHaveAttribute("open");
+      container.querySelectorAll(".phase.done, .phase.active"),
+    ).toHaveLength(0);
   });
 
-  it("counts only applicable steps when synchronization is not expected", () => {
-    render(ExecutionPhases, {
-      props: { localPhase: "finished", syncPhase: null, syncExpected: false },
-    });
-
-    expect(screen.getByText("All 8 steps complete")).toBeInTheDocument();
-  });
-
-  it("marks only event-backed local phases complete or active", () => {
-    render(ExecutionPhases, {
+  it("times only completed steps and highlights the active one", () => {
+    const { container } = render(RunRail, {
       props: {
-        localPhase: "staging",
-        syncPhase: null,
-        syncExpected: true,
+        rail: runRail({
+          local: [...local],
+          sync: [],
+          executing: true,
+          localFailed: false,
+          syncing: false,
+          syncExpected: true,
+          syncStopped: false,
+        }),
       },
     });
 
+    expect(screen.getByText("Step 3 of 10 · Stage output")).toBeInTheDocument();
+    const rows = [...container.querySelectorAll(".phase")];
+    expect(rows[0]).toHaveClass("done");
+    expect(rows[0].querySelector(".phase-time")).toHaveTextContent("0.1 s");
+    expect(rows[1].querySelector(".phase-time")).toHaveTextContent("0.2 s");
+    expect(rows[2]).toHaveClass("active");
+    expect(rows[2]).toHaveAttribute("aria-current", "step");
+    expect(rows[2].querySelector(".phase-time")).toBeEmptyDOMElement();
+    expect(rows[3].querySelector(".phase-time")).toBeEmptyDOMElement();
     expect(
-      screen.getByText("Validate frozen plan").closest("li"),
-    ).toHaveAttribute("data-state", "complete");
-    expect(
-      screen.getByText("Stage local profiles").closest("li"),
-    ).toHaveAttribute("data-state", "active");
-    expect(
-      screen.getByText("Validate generated output").closest("li"),
-    ).toHaveAttribute("data-state", "pending");
+      (
+        container.querySelector(".phase-list") as HTMLElement
+      ).style.getPropertyValue("--phase-progress"),
+    ).toBe(String(2 / 9));
   });
 
-  it("projects synchronization events after every local phase", () => {
-    render(ExecutionPhases, {
+  it("settles on the last step with a measured total when finished", () => {
+    const { container } = render(RunRail, {
       props: {
-        localPhase: "finished",
-        syncPhase: "monitoring",
-        syncExpected: true,
+        rail: runRail({
+          local: [
+            ...local,
+            { phase: "validating_output", elapsed_ms: 400 },
+            { phase: "backing_up", elapsed_ms: 500 },
+            { phase: "committing", elapsed_ms: 700 },
+            { phase: "writing_receipt", elapsed_ms: 800 },
+            { phase: "finished", elapsed_ms: 900 },
+          ],
+          sync: [],
+          executing: false,
+          localFailed: false,
+          syncing: false,
+          syncExpected: false,
+          syncStopped: false,
+        }),
       },
     });
 
+    expect(screen.getByText("Finished · 0.9 s")).toBeInTheDocument();
+    expect(container.querySelector(".phase-list")).toHaveClass("is-finished");
     expect(
-      screen.getByText("Finish local transaction").closest("li"),
-    ).toHaveAttribute("data-state", "complete");
-    expect(
-      screen.getByText("Launch Bambu Studio").closest("li"),
-    ).toHaveAttribute("data-state", "complete");
-    expect(
-      screen.getByText("Observe Bambu evidence").closest("li"),
-    ).toHaveAttribute("data-state", "active");
-    expect(
-      screen.getByText("Finish synchronization").closest("li"),
-    ).toHaveAttribute("data-state", "pending");
+      [...container.querySelectorAll(".phase-time")].filter(
+        (time) => time.textContent === "Skipped",
+      ),
+    ).toHaveLength(2);
   });
 });
 

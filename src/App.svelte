@@ -1,19 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import {
-    AlertOctagon,
-    ArrowRight,
-    Lock,
-    LoaderCircle,
-    Route,
-  } from "@lucide/svelte";
+  import { onMount, tick } from "svelte";
+  import { AlertOctagon, LoaderCircle } from "@lucide/svelte";
   import { api } from "./lib/api";
   import { scopeViolations } from "./lib/template-composer";
   import AppChrome from "./lib/components/AppChrome.svelte";
   import RunStatus from "./lib/components/RunStatus.svelte";
   import type { WorkspaceView } from "./lib/components/WorkspaceTabs.svelte";
-  import FilterBar from "./lib/components/FilterBar.svelte";
-  import FilterTools from "./lib/components/FilterTools.svelte";
+  import FilamentPicker from "./lib/components/FilamentPicker.svelte";
   import FirstRunSetup from "./lib/components/FirstRunSetup.svelte";
   import NamingPanel from "./lib/components/NamingPanel.svelte";
   import ModalDialog from "./lib/components/ModalDialog.svelte";
@@ -22,13 +15,16 @@
   import PlanTable from "./lib/components/PlanTable.svelte";
   import ResultSummary from "./lib/components/ResultSummary.svelte";
   import RestorePanel from "./lib/components/RestorePanel.svelte";
+  import RouteBar from "./lib/components/RouteBar.svelte";
   import RunProgress from "./lib/components/RunProgress.svelte";
-  import SourceTable from "./lib/components/SourceTable.svelte";
+  import RunRail from "./lib/components/RunRail.svelte";
+  import StepRail from "./lib/components/StepRail.svelte";
   import TargetPanel from "./lib/components/TargetPanel.svelte";
   import UpdateNotice from "./lib/components/UpdateNotice.svelte";
   import { rememberSkippedVersion, shouldNotifyUpdate } from "./lib/updates";
+  import { runRail } from "./lib/run-rail";
+  import { STEP_IDS, WORKSPACE_STEPS as STEPS } from "./lib/steps";
   import {
-    activeFilterChips,
     appReducer,
     createInitialState,
     loadFilterPresets,
@@ -39,12 +35,7 @@
     persistNamingPresets,
     persistTheme,
     persistWorkspacePreferences,
-    removeSetValue,
-    resetFilters,
     selectedNozzleRequests,
-    sourceFacets,
-    visibleSources,
-    type ActiveFilterChip,
     type AppAction,
     type AppState,
     type FilterPreset,
@@ -99,9 +90,6 @@
   let availableUpdate = $state<AvailableUpdate | null>(null);
   let updateError = $state<string | null>(null);
 
-  const shownSources = $derived(visibleSources(appState));
-  const facets = $derived(sourceFacets(appState.sources));
-  const filterChips = $derived(activeFilterChips(appState.filters));
   const nozzleRequests = $derived(selectedNozzleRequests(appState));
   const selectedNozzleCount = $derived(
     nozzleRequests.reduce((sum, item) => sum + item.diameters.length, 0),
@@ -121,6 +109,64 @@
       appState.targetCatalogId !== null &&
       amsScopeViolations.length === 0,
   );
+  let step = $state(0);
+  let revealFrom = $state("18px");
+
+  /** Continue checks only the open step; the last step needs a complete plan. */
+  const readiness = $derived.by((): { ready: boolean; label: string } => {
+    const sources = appState.selectedSourceIds.size;
+    if (step === 0) {
+      return sources > 0
+        ? { ready: true, label: "Ready to continue" }
+        : { ready: false, label: "Select a preset" };
+    }
+    if (step === 1) {
+      if (outputCount === 0) return { ready: false, label: "Enable an output" };
+      if (amsScopeViolations.length > 0)
+        return { ready: false, label: "Fix the AMS template" };
+      return { ready: true, label: "Ready to continue" };
+    }
+    if (sources === 0) return { ready: false, label: "Select a preset" };
+    if (selectedNozzleCount === 0)
+      return { ready: false, label: "Select hardware" };
+    if (outputCount === 0) return { ready: false, label: "Enable an output" };
+    if (amsScopeViolations.length > 0)
+      return { ready: false, label: "Fix the AMS template" };
+    if (!hasInputs) return { ready: false, label: "Select an account" };
+    return { ready: true, label: "Ready to build" };
+  });
+  const modalOpen = $derived(
+    commitConfirmationOpen || printerManagerOpen || dependencyIssues.length > 0,
+  );
+  const rail = $derived(
+    runRail({
+      local: appState.executionTimeline,
+      sync: appState.syncTimeline,
+      executing: appState.phase === "executing",
+      localFailed: appState.executionFailed,
+      syncing: appState.phase === "synchronizing",
+      syncExpected: !appState.result || appState.result.committed_files > 0,
+      syncStopped:
+        Boolean(appState.syncError) ||
+        Boolean(appState.synchronization?.timed_out),
+    }),
+  );
+
+  async function openStep(index: number) {
+    const next = Math.max(0, Math.min(STEPS.length - 1, index));
+    revealFrom = next >= step ? "18px" : "-18px";
+    step = next;
+    await tick();
+    document
+      .getElementById(`${STEP_IDS[next]}-heading`)
+      ?.focus({ preventScroll: true });
+  }
+
+  function continueRoute() {
+    if (step < STEPS.length - 1) void openStep(step + 1);
+    else void buildPlan();
+  }
+
   const planBlocked = $derived(
     appState.plan?.operations.some((item) => item.action === "block") ?? false,
   );
@@ -266,16 +312,6 @@
 
   function changeFilters(filters: Partial<SourceFilters>) {
     dispatch({ type: "filters_changed", filters });
-  }
-
-  function removeFilter(chip: ActiveFilterChip) {
-    if (chip.dimension === "search") return changeFilters({ search: "" });
-    if (chip.dimension === "selectedOnly")
-      return changeFilters({ selectedOnly: false });
-    const current = appState.filters[chip.dimension];
-    changeFilters({
-      [chip.dimension]: removeSetValue(current, chip.value as never),
-    });
   }
 
   function ruleSpecs(rules: NamingRule[]): NamingRuleSpec[] {
@@ -656,7 +692,11 @@
     try {
       const synchronization = await api.synchronizeRun(runId, (event) => {
         if (event.run_id === runId) {
-          dispatch({ type: "synchronization_phase", phase: event.phase });
+          dispatch({
+            type: "synchronization_phase",
+            phase: event.phase,
+            elapsedMs: event.elapsed_ms,
+          });
         }
       });
       dispatch({ type: "synchronization_completed", result: synchronization });
@@ -688,7 +728,11 @@
       const planId = appState.plan.id;
       const result = await api.executePlan(planId, (event) => {
         if (event.plan_id === planId) {
-          dispatch({ type: "execution_phase", phase: event.phase });
+          dispatch({
+            type: "execution_phase",
+            phase: event.phase,
+            elapsedMs: event.elapsed_ms,
+          });
         }
       });
       for (const operation of appState.plan.operations) {
@@ -822,12 +866,8 @@
       discovery={appState.discovery}
       selectedAccountId={appState.selectedAccountId}
       theme={appState.theme}
-      busy={appState.phase === "discovering" || catalogProgress !== null}
       {activeView}
       planCount={appState.plan?.operations.length ?? 0}
-      onRefresh={discover}
-      onAddSource={chooseManualSourceFolder}
-      onRemoveSource={removeManualSourceFolder}
       onAccountChanged={(accountId) =>
         dispatch({ type: "account_selected", accountId })}
       onThemeChanged={applyTheme}
@@ -935,55 +975,69 @@
           aria-labelledby="setup-tab"
           tabindex="-1"
         >
-          <div class="routing-bench" aria-label="Filament migration route">
-            <article class="route-rail source-rail">
-              <SourceTable
-                sources={shownSources}
+          <h1 class="sr-only">Migration workspace</h1>
+          <div class="route-shell" aria-label="Migration setup steps">
+            <StepRail
+              id={STEP_IDS[0]}
+              index={0}
+              class="source-rail"
+              title={STEPS[0].title}
+              description={STEPS[0].description}
+              icon={STEPS[0].icon}
+              count={appState.selectedSourceIds.size}
+              unit="selected"
+              open={step === 0}
+              done={step > 0}
+              {revealFrom}
+              onOpen={() => openStep(0)}
+            >
+              <FilamentPicker
+                sources={appState.sources}
+                filters={appState.filters}
                 selectedIds={appState.selectedSourceIds}
-                totalCount={appState.sources.length}
+                historyActive={activeView === "setup" &&
+                  step === 0 &&
+                  !modalOpen}
+                discovery={appState.discovery}
+                busy={appState.phase === "discovering" ||
+                  catalogProgress !== null}
+                savedPresets={savedFilterPresets}
+                onFiltersChanged={changeFilters}
                 onToggle={(sourceId) => {
                   dispatch({ type: "source_toggled", sourceId });
                   void refreshPreview();
                 }}
-                onSelectVisible={(selected) =>
-                  dispatch({ type: "select_visible", selected })}
-                onClearSelection={() => dispatch({ type: "clear_selection" })}
-              >
-                {#snippet filters()}
-                  <FilterBar
-                    filters={appState.filters}
-                    {facets}
-                    onFiltersChanged={changeFilters}
-                    onReset={() => changeFilters(resetFilters())}
-                  />
-                  {#if filterChips.length}
-                    <div class="filter-chips" aria-label="Active filters">
-                      {#each filterChips as chip (chip.id)}<button
-                          type="button"
-                          onclick={() => removeFilter(chip)}
-                          >{chip.label}<span aria-hidden="true">×</span></button
-                        >{/each}
-                    </div>
-                  {/if}
-                {/snippet}
-                {#snippet tools()}
-                  <FilterTools
-                    filters={appState.filters}
-                    savedPresets={savedFilterPresets}
-                    onFiltersChanged={changeFilters}
-                    onSavePreset={saveFilterPreset}
-                    onLoadPreset={loadFilterPreset}
-                    onDeletePreset={deleteFilterPreset}
-                  />
-                {/snippet}
-              </SourceTable>
-            </article>
+                onSelect={(sourceIds, selected) => {
+                  dispatch({ type: "sources_selected", sourceIds, selected });
+                  void refreshPreview();
+                }}
+                onClearSelection={() => {
+                  dispatch({ type: "clear_selection" });
+                  void refreshPreview();
+                }}
+                onSavePreset={saveFilterPreset}
+                onLoadPreset={loadFilterPreset}
+                onDeletePreset={deleteFilterPreset}
+                onRefresh={discover}
+                onAddSource={chooseManualSourceFolder}
+                onRemoveSource={removeManualSourceFolder}
+              />
+            </StepRail>
 
-            <div class="route-thread" aria-hidden="true">
-              <span></span><ArrowRight size={15} />
-            </div>
-
-            <article class="route-rail naming-rail">
+            <StepRail
+              id={STEP_IDS[1]}
+              index={1}
+              class="naming-rail"
+              title={STEPS[1].title}
+              description={STEPS[1].description}
+              icon={STEPS[1].icon}
+              count={outputCount}
+              unit={outputCount === 1 ? "output" : "outputs"}
+              open={step === 1}
+              done={step > 1}
+              {revealFrom}
+              onOpen={() => openStep(1)}
+            >
               <NamingPanel
                 presetTemplate={appState.presetTemplate}
                 amsTemplate={appState.amsTemplate}
@@ -1001,13 +1055,22 @@
                 onLoadPreset={loadNamingPreset}
                 onDeletePreset={deleteNamingPreset}
               />
-            </article>
+            </StepRail>
 
-            <div class="route-thread destination" aria-hidden="true">
-              <span></span><Route size={15} />
-            </div>
-
-            <article class="route-rail destination-rail">
+            <StepRail
+              id={STEP_IDS[2]}
+              index={2}
+              class="destination-rail"
+              title={STEPS[2].title}
+              description={STEPS[2].description}
+              icon={STEPS[2].icon}
+              count={selectedNozzleCount}
+              unit={selectedNozzleCount === 1 ? "target" : "targets"}
+              open={step === 2}
+              done={false}
+              {revealFrom}
+              onOpen={() => openStep(2)}
+            >
               <TargetPanel
                 catalogId={appState.targetCatalogId ?? ""}
                 printers={appState.printers}
@@ -1027,48 +1090,21 @@
                   void refreshPreview();
                 }}
               />
-            </article>
+            </StepRail>
           </div>
 
-          <div class="setup-actionbar">
-            <div class="setup-counts">
-              <span
-                aria-label={`${appState.selectedSourceIds.size} ${appState.selectedSourceIds.size === 1 ? "source" : "sources"}`}
-                ><strong>{appState.selectedSourceIds.size}</strong>
-                {appState.selectedSourceIds.size === 1
-                  ? "source"
-                  : "sources"}</span
-              >
-              <span
-                aria-label={`${selectedNozzleCount} ${selectedNozzleCount === 1 ? "nozzle" : "nozzles"}`}
-                ><strong>{selectedNozzleCount}</strong>
-                {selectedNozzleCount === 1 ? "nozzle" : "nozzles"}</span
-              >
-              <span aria-label={`${outputCount} outputs`}
-                ><strong>{outputCount}</strong> outputs</span
-              >
-            </div>
-            <p class="setup-safety">
-              <Lock size={13} /> Nothing is written until you review and commit the
-              plan.
-            </p>
-            <span class:ready={hasInputs} class="plan-readiness">
-              {amsScopeViolations.length > 0
-                ? "Fix the AMS template"
-                : hasInputs
-                  ? "Ready to build"
-                  : "Select a source and nozzle"}
-            </span>
-            <button
-              class="primary-button"
-              type="button"
-              disabled={!hasInputs || appState.phase === "planning"}
-              onclick={() => void buildPlan()}
-              >{appState.phase === "planning"
-                ? "Building plan…"
-                : "Build migration plan"}</button
-            >
-          </div>
+          <RouteBar
+            {step}
+            steps={STEPS}
+            sources={appState.selectedSourceIds.size}
+            targets={selectedNozzleCount}
+            outputs={outputCount}
+            ready={readiness.ready}
+            readinessLabel={readiness.label}
+            building={appState.phase === "planning"}
+            onBack={() => openStep(step - 1)}
+            onContinue={continueRoute}
+          />
         </div>
       {:else if activeView === "plan"}
         <div
@@ -1118,49 +1154,43 @@
           aria-labelledby="activity-tab"
           tabindex="-1"
         >
-          {#if appState.plan && (appState.phase === "executing" || appState.result)}
-            <RunStatus
-              result={appState.result}
-              synchronization={appState.synchronization}
-              syncError={appState.syncError}
-              syncing={appState.phase === "synchronizing"}
-              localPhase={appState.executionPhase}
-              syncPhase={appState.syncPhase}
-              syncExpected={!appState.result ||
-                appState.result.committed_files > 0}
-              onRetrySync={synchronizeRun}
-              onOpenRestore={previewRestore}
-            />
-          {/if}
-
-          {#if appState.plan && (appState.phase === "executing" || appState.phase === "synchronizing" || Object.keys(appState.progress).length)}
-            <RunProgress
-              plan={appState.plan}
-              progress={appState.progress}
-              running={appState.phase === "executing" ||
-                appState.phase === "synchronizing"}
-              cancellable={appState.phase === "synchronizing"}
-              onCancel={cancelSynchronization}
-              onVerify={verifyAms}
-            />
-          {/if}
-
-          {#if appState.result}
-            <ResultSummary
-              result={appState.result}
-              synchronization={appState.synchronization}
-              syncError={appState.syncError}
-              syncing={appState.phase === "synchronizing"}
-              onOpenSupport={api.openSupportPage}
-            />
-          {:else if !(appState.plan && (appState.phase === "executing" || appState.phase === "synchronizing" || Object.keys(appState.progress).length))}
-            <div class="view-empty">
-              <h2>No migration run yet</h2>
-              <p>
-                Review and commit a migration plan to see execution evidence.
-              </p>
+          <div class="section-head">
+            <h2>Follow every step</h2>
+            <p>Local execution and cloud-facing evidence stay separate.</p>
+          </div>
+          <div class="run-layout">
+            <RunRail {rail} />
+            <div class="run-main">
+              <RunStatus
+                result={appState.result}
+                executing={appState.phase === "executing"}
+                localError={appState.executionFailed ? appState.error : null}
+                synchronization={appState.synchronization}
+                syncError={appState.syncError}
+                syncing={appState.phase === "synchronizing"}
+                onRetrySync={synchronizeRun}
+                onOpenRestore={previewRestore}
+              />
+              <RunProgress
+                plan={appState.plan}
+                progress={appState.progress}
+                running={appState.phase === "executing" ||
+                  appState.phase === "synchronizing"}
+                cancellable={appState.phase === "synchronizing"}
+                onCancel={cancelSynchronization}
+                onVerify={verifyAms}
+              />
+              {#if appState.result}
+                <ResultSummary
+                  result={appState.result}
+                  synchronization={appState.synchronization}
+                  syncError={appState.syncError}
+                  syncing={appState.phase === "synchronizing"}
+                  onOpenSupport={api.openSupportPage}
+                />
+              {/if}
             </div>
-          {/if}
+          </div>
         </div>
       {:else}
         <div

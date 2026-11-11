@@ -144,34 +144,27 @@
   }
 </script>
 
-<section class="panel naming-panel" aria-labelledby="naming-heading">
-  <header class="panel-heading">
-    <div class="panel-title">
-      <span class="panel-step" aria-hidden="true">2</span>
-      <h2 id="naming-heading">Naming</h2>
-    </div>
-    <div class="panel-heading-actions">
+<div class="naming-layout">
+  <div class="naming-main template-fields">
+    <div class="preview-context">
+      {#if preview}
+        <p class="preview-subject">
+          Example names use <code>{previewSubject}</code>
+        </p>
+      {:else}
+        <p class="preview-subject">
+          Select a preset and a nozzle to preview names.
+        </p>
+      {/if}
       <button
         type="button"
-        class="icon-button subtle help-button"
+        class="icon-button help-button"
         aria-label="Naming help"
         onclick={() => (helpOpen = true)}
       >
         <span class="help-glyph" aria-hidden="true">?</span>
       </button>
     </div>
-  </header>
-
-  <div class="template-fields">
-    {#if preview}
-      {#if previewSubject}
-        <p class="preview-subject">Preview for <code>{previewSubject}</code></p>
-      {/if}
-    {:else}
-      <p class="preview-subject">
-        Select a source and nozzle to preview names.
-      </p>
-    {/if}
     <TemplateComposer
       label="Bambu slicing preset template"
       value={presetTemplate}
@@ -207,132 +200,194 @@
         {/if}
       </div>
     {/if}
+    {#if error}<p class="field-error" role="alert">{error}</p>{/if}
   </div>
 
-  {#if error}<p class="field-error" role="alert">{error}</p>{/if}
+  <div class="naming-side">
+    <details class="advanced-rules">
+      <summary
+        ><span class="summary-label">Advanced naming rules</span><span
+          class="tag"
+          >{presetRules.length + amsRules.length}
+          {presetRules.length + amsRules.length === 1 ? "rule" : "rules"}</span
+        ></summary
+      >
+      <div class="rule-editor">
+        <div class="rule-grid">
+          <label
+            ><span>Apply to</span><select
+              aria-label="Rule output"
+              bind:value={output}
+              ><option value="ams">AMS identity</option><option value="preset"
+                >Slicing preset</option
+              ></select
+            ></label
+          >
+          <label
+            ><span>Rule type</span><select
+              aria-label="Rule type"
+              bind:value={kind}
+              ><option value="wildcard">Wildcard</option><option value="regex"
+                >Regular expression</option
+              ></select
+            ></label
+          >
+          <label class="rule-wide"
+            ><span>Rule pattern</span><input
+              aria-label="Rule pattern"
+              bind:value={pattern}
+              placeholder={kind === "wildcard"
+                ? "Overture PLA *"
+                : "(?i)^Overture PLA (.*)$"}
+              spellcheck="false"
+            /></label
+          >
+          <label class="rule-wide"
+            ><span>Replacement</span><input
+              aria-label="Replacement"
+              bind:value={replacement}
+              placeholder="$1"
+              spellcheck="false"
+            /></label
+          >
+          <label
+            ><span>Condition</span><select
+              aria-label="Condition field"
+              bind:value={conditionField}
+              ><option value="">Apply to all</option
+              >{#each conditionFields as field (field.value)}<option
+                  value={field.value}>{field.label}</option
+                >{/each}</select
+            ></label
+          >
+          <label
+            ><span>Matches</span><input
+              aria-label="Condition value"
+              bind:value={conditionValue}
+              disabled={!conditionField}
+              placeholder="Matte"
+            /></label
+          >
+        </div>
+        <label class="case-toggle"
+          ><input type="checkbox" bind:checked={caseSensitive} /><span
+            >Case-sensitive matching</span
+          ></label
+        >
+        {#if draftError}<p class="field-error" role="alert">
+            {draftError}
+          </p>{/if}
+        <button class="secondary-button" type="button" onclick={addRule}
+          ><Plus size={14} /> Add rule</button
+        >
 
-  <details class="advanced-rules">
-    <summary>Advanced naming rules</summary>
-    <div class="rule-editor">
-      <div class="rule-grid">
-        <label
-          ><span>Apply to</span><select
-            aria-label="Rule output"
-            bind:value={output}
-            ><option value="ams">AMS identity</option><option value="preset"
-              >Slicing preset</option
-            ></select
-          ></label
-        >
-        <label
-          ><span>Rule type</span><select
-            aria-label="Rule type"
-            bind:value={kind}
-            ><option value="wildcard">Wildcard</option><option value="regex"
-              >Regular expression</option
-            ></select
-          ></label
-        >
-        <label class="rule-wide"
-          ><span>Rule pattern</span><input
-            aria-label="Rule pattern"
-            bind:value={pattern}
-            placeholder={kind === "wildcard"
-              ? "Polymaker PLA *"
-              : "(?i)^Polymaker PLA (.*)$"}
-            spellcheck="false"
-          /></label
-        >
-        <label class="rule-wide"
-          ><span>Replacement</span><input
-            aria-label="Replacement"
-            bind:value={replacement}
-            placeholder="$1"
-            spellcheck="false"
-          /></label
-        >
-        <label
-          ><span>Condition</span><select
-            aria-label="Condition field"
-            bind:value={conditionField}
-            ><option value="">Apply to all</option
-            >{#each conditionFields as field (field.value)}<option
-                value={field.value}>{field.label}</option
-              >{/each}</select
-          ></label
-        >
-        <label
-          ><span>Matches</span><input
-            aria-label="Condition value"
-            bind:value={conditionValue}
-            disabled={!conditionField}
-            placeholder="Panchroma"
-          /></label
-        >
+        {#each [["preset", "Slicing preset rules", presetRules], ["ams", "AMS identity rules", amsRules]] as group (group[0])}
+          {@const ruleOutput = group[0] as "preset" | "ams"}
+          {@const rules = group[2] as NamingRule[]}
+          {#if rules.length}
+            <section class="rule-list" aria-label={group[1] as string}>
+              <h3>{group[1]} <span>{rules.length}</span></h3>
+              <ol>
+                {#each rules as rule, index (rule.id)}
+                  <li>
+                    <span class="rule-index">{index + 1}</span>
+                    <span class="rule-description"
+                      ><strong
+                        >{rule.kind === "wildcard" ? "Wildcard" : "Regex"}: {rule.pattern}</strong
+                      ><small
+                        >Replace with {rule.replacement ||
+                          "nothing"}{rule.condition
+                          ? ` when ${rule.condition.field} is ${rule.condition.value}`
+                          : " on all matching names"}</small
+                      ></span
+                    >
+                    <span class="rule-actions"
+                      ><button
+                        type="button"
+                        aria-label={`Move rule ${index + 1} up`}
+                        disabled={index === 0}
+                        onclick={() => moveRule(ruleOutput, index, -1)}
+                        ><ArrowUp size={13} /></button
+                      ><button
+                        type="button"
+                        aria-label={`Move rule ${index + 1} down`}
+                        disabled={index === rules.length - 1}
+                        onclick={() => moveRule(ruleOutput, index, 1)}
+                        ><ArrowDown size={13} /></button
+                      ><button
+                        type="button"
+                        aria-label={`Delete rule ${index + 1}`}
+                        onclick={() => removeRule(ruleOutput, rule.id)}
+                        ><Trash2 size={13} /></button
+                      ></span
+                    >
+                  </li>
+                {/each}
+              </ol>
+            </section>
+          {/if}
+        {/each}
       </div>
-      <label class="case-toggle"
-        ><input type="checkbox" bind:checked={caseSensitive} /><span
-          >Case-sensitive matching</span
-        ></label
-      >
-      {#if draftError}<p class="field-error" role="alert">{draftError}</p>{/if}
-      <button class="secondary-button" type="button" onclick={addRule}
-        ><Plus size={14} /> Add rule</button
-      >
+    </details>
 
-      {#each [["preset", "Slicing preset rules", presetRules], ["ams", "AMS identity rules", amsRules]] as group (group[0])}
-        {@const ruleOutput = group[0] as "preset" | "ams"}
-        {@const rules = group[2] as NamingRule[]}
-        {#if rules.length}
-          <section class="rule-list" aria-label={group[1] as string}>
-            <h3>{group[1]} <span>{rules.length}</span></h3>
-            <ol>
-              {#each rules as rule, index (rule.id)}
-                <li>
-                  <span class="rule-index">{index + 1}</span>
-                  <span class="rule-description"
-                    ><strong
-                      >{rule.kind === "wildcard" ? "Wildcard" : "Regex"}: {rule.pattern}</strong
-                    ><small
-                      >Replace with {rule.replacement ||
-                        "nothing"}{rule.condition
-                        ? ` when ${rule.condition.field} is ${rule.condition.value}`
-                        : " on all matching names"}</small
-                    ></span
-                  >
-                  <span class="rule-actions"
-                    ><button
-                      type="button"
-                      aria-label={`Move rule ${index + 1} up`}
-                      disabled={index === 0}
-                      onclick={() => moveRule(ruleOutput, index, -1)}
-                      ><ArrowUp size={13} /></button
-                    ><button
-                      type="button"
-                      aria-label={`Move rule ${index + 1} down`}
-                      disabled={index === rules.length - 1}
-                      onclick={() => moveRule(ruleOutput, index, 1)}
-                      ><ArrowDown size={13} /></button
-                    ><button
-                      type="button"
-                      aria-label={`Delete rule ${index + 1}`}
-                      onclick={() => removeRule(ruleOutput, rule.id)}
-                      ><Trash2 size={13} /></button
-                    ></span
-                  >
-                </li>
-              {/each}
-            </ol>
-          </section>
-        {/if}
-      {/each}
+    <details class="advanced-outputs">
+      <summary
+        ><span class="summary-label">Outputs</span><span class="tag"
+          >{outputs.slicing_presets && outputs.custom_filaments
+            ? "Slicing & AMS"
+            : outputs.slicing_presets
+              ? "Slicing only"
+              : "AMS only"}</span
+        ></summary
+      >
+      <div class="output-controls">
+        <label>
+          <input
+            aria-label="Create Bambu slicing presets"
+            type="checkbox"
+            checked={outputs.slicing_presets}
+            disabled={outputs.slicing_presets && !outputs.custom_filaments}
+            onchange={(event) =>
+              onOutputsChanged({
+                ...outputs,
+                slicing_presets: event.currentTarget.checked,
+              })}
+          />
+          <span
+            ><strong>Create Bambu slicing presets</strong><small
+              >Normal user presets for the selected printer family</small
+            ></span
+          >
+        </label>
+        <label>
+          <input
+            aria-label="Create AMS custom filaments"
+            type="checkbox"
+            checked={outputs.custom_filaments}
+            disabled={outputs.custom_filaments && !outputs.slicing_presets}
+            onchange={(event) =>
+              onOutputsChanged({
+                ...outputs,
+                custom_filaments: event.currentTarget.checked,
+              })}
+          />
+          <span
+            ><strong>Create AMS custom filaments</strong><small
+              >Flattened profile JSON and paired synchronization sidecar</small
+            ></span
+          >
+        </label>
+      </div>
+    </details>
 
+    <details class="naming-presets">
+      <summary><span class="summary-label">Naming preset</span></summary>
       <div class="preset-controls">
         <label
           ><span>Naming preset name</span><input
             aria-label="Naming preset name"
             bind:value={presetName}
-            placeholder="Panchroma clean"
+            placeholder="Printer-first names"
           /></label
         >
         <button
@@ -364,50 +419,8 @@
           </div>
         {/if}
       </div>
-    </div>
-  </details>
-
-  <details class="advanced-outputs">
-    <summary>Advanced outputs</summary>
-    <div class="output-controls">
-      <label>
-        <input
-          aria-label="Create Bambu slicing presets"
-          type="checkbox"
-          checked={outputs.slicing_presets}
-          disabled={outputs.slicing_presets && !outputs.custom_filaments}
-          onchange={(event) =>
-            onOutputsChanged({
-              ...outputs,
-              slicing_presets: event.currentTarget.checked,
-            })}
-        />
-        <span
-          ><strong>Create Bambu slicing presets</strong><small
-            >Normal user presets for the selected printer family</small
-          ></span
-        >
-      </label>
-      <label>
-        <input
-          aria-label="Create AMS custom filaments"
-          type="checkbox"
-          checked={outputs.custom_filaments}
-          disabled={outputs.custom_filaments && !outputs.slicing_presets}
-          onchange={(event) =>
-            onOutputsChanged({
-              ...outputs,
-              custom_filaments: event.currentTarget.checked,
-            })}
-        />
-        <span
-          ><strong>Create AMS custom filaments</strong><small
-            >Flattened profile JSON and paired synchronization sidecar</small
-          ></span
-        >
-      </label>
-    </div>
-  </details>
+    </details>
+  </div>
 
   <ModalDialog
     open={helpOpen}
@@ -430,4 +443,4 @@
       not invent a local fallback preview.
     </p>
   </ModalDialog>
-</section>
+</div>

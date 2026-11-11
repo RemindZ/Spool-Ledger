@@ -3,13 +3,6 @@
 </script>
 
 <script lang="ts">
-  import {
-    Activity,
-    ArchiveRestore,
-    ClipboardList,
-    SlidersHorizontal,
-  } from "@lucide/svelte";
-
   let {
     active,
     planCount = 0,
@@ -21,10 +14,10 @@
   } = $props();
 
   const tabs = [
-    { view: "setup", label: "Setup", icon: SlidersHorizontal },
-    { view: "plan", label: "Review plan", icon: ClipboardList },
-    { view: "activity", label: "Run & evidence", icon: Activity },
-    { view: "restore", label: "Restore", icon: ArchiveRestore },
+    { view: "setup", label: "Workspace" },
+    { view: "plan", label: "Review plan" },
+    { view: "activity", label: "Run & verify" },
+    { view: "restore", label: "Restore" },
   ] as const;
 
   function select(view: WorkspaceView) {
@@ -50,7 +43,7 @@
   }
 </script>
 
-<div class="workspace-tabs" role="tablist" aria-label="Application sections">
+<div class="app-tabs" role="tablist" aria-label="Application sections">
   {#each tabs as tab, index (tab.view)}
     <button
       type="button"
@@ -62,7 +55,6 @@
       onclick={() => select(tab.view)}
       onkeydown={(event) => handleKeydown(event, index)}
     >
-      <tab.icon size={15} aria-hidden="true" />
       {tab.label}
       {#if tab.view === "plan" && planCount > 0}
         <span class="tab-count">{planCount}</span>

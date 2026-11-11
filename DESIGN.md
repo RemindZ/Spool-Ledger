@@ -18,33 +18,35 @@ The UI may be visually redesigned, but it must preserve the real workflow and ba
 
 ### Palette
 
-Use these current tokens as the starting contract. Refine their relationships if needed, but preserve the semantic ownership of each hue.
+The 2026-10-02 update uses a sage light theme and a lifted charcoal dark theme. Dark surfaces are never near-black.
 
 | Role | Light | Dark | Meaning |
 | --- | --- | --- | --- |
-| Ground | `#E7ECE9` | `#0D1410` | Slicer workspace |
-| Surface | `#F8FAF9` | `#131D18` | Panels and controls |
-| Raised surface | `#FFFFFF` | `#1A2720` | Active or floating layers |
-| Primary text | `#17211C` | `#EEF4F0` | Main content |
-| Secondary text | `#526159` | `#A7B8AE` | Supporting content |
-| Divider | `#CBD5CF` | `#2D4136` | Structure |
-| Bambu green | `#009A3C` | `#10BD52` | Destination, commit, verified local action |
-| Orca orange | `#E86F2D` | `#F08A4E` | Source provenance only |
-| Danger | `#BD3434` | `#EF7676` | Blocking conflicts and failures |
-| Warning | `#A95E00` | `#E3A24C` | Unverified custom targets and pending checks |
+| Ground | `oklch(91% 0.022 160.07)` | `oklch(28% 0.01 163.06)` | Slicer workspace |
+| Surface | `oklch(97% 0.009 165.08)` | `oklch(32% 0.012 163.06)` | Panels and controls |
+| Raised surface | `#FFFFFF` | `oklch(36% 0.014 163.06)` | Active or floating layers |
+| Primary text | `oklch(27% 0.018 163.06)` | `oklch(90% 0.008 163.06)` | Main content |
+| Secondary text | `oklch(43% 0.024 162.2)` | `oklch(74% 0.016 163.06)` | Supporting content |
+| Divider | `oklch(80% 0.025 159.87)` | `oklch(43% 0.016 163.06)` | Structure |
+| Bambu green | `oklch(59.84% 0.1735 147.93)` | `oklch(70% 0.112 147.93)` | Destination, primary action, verified states, registration square |
+| Orca orange | `#E86F2D` | `oklch(74% 0.112 48)` | Source provenance and source selection only |
+| Danger | `#BD3434` | `oklch(75% 0.13 25)` | Blocking conflicts and failures |
+| Warning | `#A95E00` | `oklch(77% 0.108 75)` | Pending checks and stopped synchronization |
 
-Bambu green is the action and destination color. Orca orange is deliberately restrained and should never compete with the primary action. Semantic danger and warning colors remain independent of both brands.
+Bambu green is the action and destination color. Orca orange marks source provenance and source selection (picker checkboxes, selection meters and pills) and never competes with the primary action. Semantic danger and warning colors remain independent of both brands.
 
-Brand hues are fills and marks. Text and control boundaries use contrast tokens that keep each hue's meaning and meet WCAG AA on every panel surface. `src/lib/__tests__/contrast-tokens.test.ts` enforces these pairings for both themes.
+Chrome surfaces stay dark in both themes: the title bar, the step spines, the open step header and the Run & verify rail header. They resolve the dark token set locally through `.dark-island`, so text, muted text and borders always use dark-theme values on them.
+
+Brand hues are fills and marks. Text and control boundaries use contrast tokens that keep each hue's meaning and meet WCAG AA on every panel surface and on the dark chrome. `src/lib/__tests__/contrast-tokens.test.ts` enforces these pairings for both themes.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--text-faint` | `oklch(50% 0.02 162)` | `#94A79C` | Kickers, table headers, helper text (4.5:1) |
-| `--orca-ink` | `oklch(51% 0.145 47)` | `#F08A4E` | Orca source text (4.5:1) |
-| `--action` / `--on-action` | `oklch(50% 0.145 148)` / white | `#10BD52` / `#0D1410` | Primary action fill and label (4.5:1) |
-| `--on-danger` | white | `#0D1410` | Label on danger fill (4.5:1) |
-| `--control-border` | `oklch(60% 0.02 160)` | `#648070` | Input, select, and checkbox boundaries (3:1) |
-| `--focus-ring` | Bambu green | `#10BD52` | Solid 2 px focus outline (3:1) |
+| `--text-faint` | `oklch(43% 0.024 162.2)` | `oklch(74% 0.016 163.06)` | Kickers, table headers, helper text (4.5:1) |
+| `--orca-ink` | `oklch(48% 0.145 47)` | `oklch(78% 0.11 50)` | Orca source text (4.5:1) |
+| `--action` / `--on-action` | Bambu green / `#07120C` | Bambu green / `oklch(20% 0.02 163.06)` | Primary action fill and label (4.5:1) |
+| `--on-danger` | white | `oklch(20% 0.02 163.06)` | Label on danger fill (4.5:1) |
+| `--control-border` | `oklch(58% 0.025 160)` | `oklch(64% 0.02 163.06)` | Input, select, and checkbox boundaries (3:1) |
+| `--focus-ring` | `oklch(48% 0.14 148)` | Bambu green | Solid 2 px focus outline (3:1) |
 
 ### Typography
 
@@ -65,47 +67,52 @@ Prefer compact, highly legible sizes. Use tabular numerals for counts and nozzle
 - Use one restrained shadow tier for genuinely raised content.
 - Do not turn every section into a rounded card.
 
-### Signature element
+### Signature element and textures
 
-The memorable element is the Spool Ledger construction used as a structural language rather than repeated decoration. It should visually connect:
+The memorable element is the Spool Ledger route rendered as a step bench: three steps that read as one physical object, joined by a route strand that fills orange (filament profiles), amber (naming) and green (printers and nozzles) as the operator advances.
 
-1. Source profiles through a short Orca-orange filament tail.
-2. Naming and policy transformation through graphite profile tiles and ledger rows.
-3. Printer, nozzle, and AMS outputs through compact Bambu-green registration notches.
+Two supplied textures carry the surface language. Both are generated decorative assets with provenance notes in `public/design/`:
 
-The motif is structural, not decorative. Rounded-square profile tiles, open spool arcs, and registration notches should help users understand where selected material is going and where a conflict interrupts the path. It must collapse cleanly on narrow layouts and respect reduced-motion preferences.
+- `filament-header-texture.png`, a photographic filament roll, appears only on the title bar, as a `cover` background at 32 % opacity positioned `center 54%`.
+- `texture-companion-infill.png`, a rectilinear FDM infill skin, appears only on the collapsed step spines, the open step header bar and the Run & verify rail header. It tiles at 320 × 320 px and shows at 43 % over `#2E3833`.
+
+The step icons (`step-icon-filament.png`, `step-icon-naming.png`, `step-icon-printer.png`) appear at 46 px on spines and 42 px with a soft drop shadow in open headers. Never redraw the logo, the icons or the textures.
 
 ## Information architecture
 
 ### Persistent top bar
 
-The chrome is two rows. The work area starts below them, with no intro card or separate stepper.
+The chrome is two rows. The work area starts below them, with no intro card or separate stepper. The workspace heading is visually hidden for screen readers.
 
-1. The dark window bar, which is also the drag region: Spool Ledger as the dominant product name with Bambu Filament Migrator as the permanent descriptor, detected OrcaSlicer and Bambu Studio state as status dots, and an appearance button whose menu holds the light, dark, and system theme control.
-2. The toolbar: workspace tabs, the selected eligible Bambu account, a compact **Local only** indicator, source folders, and refresh.
+1. The title bar, which is also the drag region: the Spool Ledger lockup (184 px), the route **OrcaSlicer → Bambu Studio** with an orange source dot and screen-reader detection state, and one theme button at the right end.
+2. The toolbar (62 px): the tabs Workspace, Review plan, Run & verify and Restore, the **Destination** account select, and a green-tinted **Local only** chip.
 
-The sentence "Nothing is written until you review and commit the plan." sits beside the Build migration plan action, where it matters. The platform is not labelled, because Windows is the only release platform.
+Source folders and discovery refresh live in the Catalog popover of the filament picker footer. The platform is not labelled, because Windows is the only release platform. No sample-workspace chip appears in production.
 
 Do not expose unrestricted file paths as editable inputs. Discovery and account selection operate through backend-approved opaque IDs.
 
 ### Main routing bench
 
-Desktop uses three rails:
+The bench is a three-step accordion: **Filament profiles → Naming → Printers & nozzles**. Exactly one step is open at a time and the workspace starts on Filament profiles. The bench height is `clamp(540px, calc(100dvh - 262px), 940px)`.
 
 ```text
-┌────────────────────┬──────────────────────────┬────────────────────┐
-│ Source profiles    │ Naming and transformation│ Bambu destinations │
-│ filters + table    │ templates + rules         │ printers + nozzles │
-│ Orca provenance    │ live before/after preview │ AMS target status  │
-└────────────────────┴──────────────────────────┴────────────────────┘
-                      Spool Ledger registration route
+┌──────────────────────────────────────────────┬────┬────┐
+│ 01 Filament profiles (textured header)       │ 02 │ 03 │
+│ Source · Manufacturer · Search               │    │    │
+│ All materials / PLA / Matte                  │spine│spine│
+│ material cards, type cards or preset rows    │    │    │
+│ N presets selected · Show selected only ...  │  2 │  2 │
+└──────────────────────────────────────────────┴────┴────┘
+ Step 1 of 3 · Filament profiles   3 sources 2 targets 2 outputs  [Continue to naming →]
 ```
 
-Each rail header carries its step number (1 Filaments, 2 Naming, 3 Printers & nozzles) as a square registration tile. The numbers replace a separate setup stepper.
+Collapsed steps are 84 px textured spines, completed steps on the left and upcoming steps on the right. A spine shows the mono step number (with a 6 px green square once completed), the step icon, the vertical title, and a live count ("3 selected", "2 outputs", "2 targets"). The whole spine is a button that opens its step and moves focus to the step heading.
 
-Below the rails, a full-width migration plan shows every output operation. Execution evidence and results replace or extend this lower area without causing the upper workspace to jump.
+The action bar below the bench shows "Step N of 3 · Title" with a one-line hint, the source, target and output counts, a readiness tag, **Back** (hidden on step 1) and one primary button: **Continue to naming**, **Continue to printers**, **Continue to review**. The last one builds the frozen plan with the existing command and opens Review plan.
 
-At medium widths, source remains full-width and transformation/destination share a second row. At narrow widths, use one ordered column: source, transformation, targets, plan, execution. Never introduce horizontal page scrolling. Tables may scroll inside their own containers.
+Readiness is checked per step: step 1 needs a preset ("Select a preset"); step 2 needs an output and a valid AMS template ("Enable an output", "Fix the AMS template"); step 3 needs presets, targets, outputs and an eligible account ("Select hardware" and so on). The tag reads "Ready to continue" on steps 1 and 2 and "Ready to build" on step 3.
+
+Below 900 px the accordion stacks vertically and spines become 68 px horizontal bars. Never introduce horizontal page scrolling. Tables may scroll inside their own containers.
 
 ### First-run setup
 
@@ -133,42 +140,38 @@ The interface must preserve this order:
 
 A plan becomes stale whenever source selection, target selection, naming, rules, row overrides, or conflict decisions change. Rebuild it automatically when a plan is already visible.
 
-## Source rail
+## Filament profiles step
 
-Support these real facets:
+The picker is a three-tier drilldown.
 
-- Source application.
-- Factory/system versus user/custom origin.
-- Manufacturer.
-- Material.
-- Family.
-- Variant.
-- Compatible source printer.
-- Migration status.
-- Selected-only state.
-- Text search.
+- **Filters:** a **Source** checklist grouped OrcaSlicer and Bambu Studio (System presets, Your presets, each with a count), a **Manufacturer** checklist with its own search box, and the retained **Compatible printer** and **Migration status** checklists. Every value starts checked. Select all and Clear all act only on the values a menu search shows. A filtered trigger gets a 1 px inner outline.
+- **Search presets** searches name, material and type within the current level and shows flat results grouped by "Material · Type".
+- **Materials** appear as cards in the order PLA, PETG, PCTG, ABS, ASA, TPU, PA · Nylon, PC, followed by any other material from real data and then Other. Materials without visible presets are hidden. Each card shows the preset and manufacturer counts, an orange selection meter, a selected pill and a tri-state checkbox that selects every visible preset in that material.
+- **Tiering** is recomputed from the visible types: three or more types open a type tier, exactly two types are listed as rows on the card, and one type opens its presets directly.
+- **Presets** are grouped by manufacturer with per-group Select all or Clear. Each row shows the product name, "OrcaSlicer · System preset" or "Bambu Studio · Your preset", migration status when it is not new, any warnings, and an Orca or Bambu tag.
+- The breadcrumb reads "All materials / PLA / Matte" or "ABS · Glass fiber" for materials without a type tier. The up button skips the absent tier. The right side shows "N shown · M selected" and, at the preset level and in search results, "Select all N" or "Clear these".
+- The footer shows "N presets selected" with "· K hidden by filters", a **Show selected only** switch, **Clear selection**, **Saved filters**, and the **Catalog** popover with catalog status, Refresh discovery and Source folders. Footer popovers open upward.
+- Empty states cover no manufacturers, no sources, no search matches, nothing selected in Show selected only, and no presets for the filters.
 
-Present the facets as a filter bar inside the filament panel: search, dropdown chips for Source application, Manufacturer, Material, and Status, and a **More filters** menu for origin, family, variant, and compatible printer. A chip shows how many values it has selected. Selected-only and saved filter presets sit on the selection row beside Select visible. Active-filter chips below the bar remove one filter each.
+The material archetype and type come from the Rust catalog (`material_archetype`, `material_type`). The archetype comes from the resolved `filament_type`; the type comes from preset-name keywords such as Matte, Silk, High speed, Carbon fiber, Glass fiber, Aero, For AMS and Shore hardness. Presets without a keyword stay under their material as Standard, and presets without a material go under Other. Nothing is guessed. Abstract inheritance bases are excluded by the catalog and never selectable.
 
-Selection must survive filtering. Show visible-selection counts separately from total-selection counts. Abstract inheritance bases and include fragments are never selectable.
+Drilling in or out slides the level in from ±16 px over 0.26 s, resets the scroll position, moves focus to the current breadcrumb and announces the level politely. Mouse Back and Forward and Alt+Left and Alt+Right retrace visited levels from an internal history, only while the step is open, the Workspace tab is active and no dialog is open. Both mouse presses are cancelled so the WebView never navigates.
 
-During the initial source catalog, keep the final routing bench dimensions stable and show a centered determinate loading state. It combines a restrained circular loading indicator with a progress bar and an exact **loaded of total** portable-preset count supplied by the catalog operation. The source, naming, and destination rails remain hidden and inert until cataloging completes. Announce completion once without narrating every progress increment.
+Selection survives filtering. During the initial source catalog, keep the final bench dimensions stable and show the centered determinate loading state with an exact **loaded of total** portable-preset count.
 
-Use Orca orange only for source provenance markers, route entry points, and small source accents.
+## Printers and nozzles step
 
-## Destination rail
-
-- Official printers come from installed manifests and only enabled official printers appear in the rail.
-- A settings button opens the reusable enabled-printer manager without exposing custom targets.
+- Official printers come from installed manifests and only enabled official printers appear, as cards in a `repeat(auto-fill, minmax(280px, 1fr))` grid up to 1280 px wide. A card's border turns green-tinted when any of its nozzles is selected.
+- **Manage enabled printers** opens the reusable enabled-printer manager without exposing custom targets.
 - Installed printer cover art is requested through current opaque catalog and official-printer IDs. The backend keeps paths private, and the UI falls back to a local printer glyph.
-- Nozzle selection is independent per printer.
-- Include a real select-all-nozzles action per printer.
+- Nozzle selection is independent per printer, with a real Select all or Clear all action per printer.
 - Unsupported nozzle or printer combinations are disabled with a reason.
-- The printer list is vertically bounded and scrolls internally so printer count does not change overall application height.
 
 Use Bambu green for selected, supported destination targets.
 
-## Naming and transformation rail
+## Naming step
+
+The step uses two columns up to 1280 px: the template composers on the left (`1.5fr`) and the Advanced naming rules, Outputs and Naming preset disclosures on the right (`minmax(280px, 1fr)`) behind a 1 px divider. It becomes one column below 1040 px.
 
 Keep slicing and AMS naming visibly separate:
 
@@ -180,7 +183,7 @@ Keep slicing and AMS naming visibly separate:
 - Reusable naming presets.
 - Exact per-row overrides from the plan.
 
-Each template shows its backend-rendered output directly below it, and the panel names the source and nozzle the preview uses. When naming rules change a name, the pre-rule value appears as **Before rules**. Template variables open from a per-field **Variable** menu, not an always-visible palette. Slicing-only variables are disabled in the AMS menu with their reason.
+Each template shows its backend-rendered output directly below it, and the example line names the first selected preset and first selected nozzle. When naming rules change a name, the pre-rule value appears as **Before rules**. The **Variable** palette opens inline under the composer that triggered it, closes on selection, Close or Escape, and keeps the slicing-only scope rules.
 
 Advanced rules should remain collapsed by default. Invalid regular expressions must block planning with a specific error. Do not hide transformed filenames or generated identities.
 
@@ -226,26 +229,30 @@ Do not use color alone. Every action needs text and an icon or shape.
 
 ## Execution and evidence
 
-The run view reads top-down as verdict, evidence, then detail:
+Run & verify uses a 300 to 380 px step rail on the left (sticky at 16 px) and, on the right, the run status card, Migration evidence and Run details. It becomes one column below 960 px.
 
-1. A status card states what happened in plain words, with the actions that resolve it beside it (Retry synchronization, Open journal-owned restore). Its segmented phase bar summarizes the steps, and **Show steps** opens the full list.
-2. The evidence panel keeps the four evidence levels as separate tiles above the per-operation rows. Skipped and blocked operations use their own icons and colors, never the success treatment.
-3. **Run details** keeps created, updated, deleted, skipped, and backup counts on one line. The plan ID, backup hash, and receipt path open on request.
+1. The rail header uses the infill texture with "TRANSACTION", a live summary ("No transaction started", "Step 5 of 10 · Create ZIP backup", "Finished · 4.7 s") and a 4 px progress bar.
+2. The rail lists ten steps with one-line descriptions. Pending steps show a numbered ring. The active step lifts, reveals its description, and pulses with an orbiting arc. Completed steps fill green, draw a check and show their measured duration. The last step settles to a check when the run finishes.
+3. The status card states what happened in plain words with the actions that resolve it (Retry synchronization, Open journal-owned restore). Its headline re-enters with a 6 px rise when it changes.
+4. Migration evidence keeps the four evidence levels as separate tiles. A reached level pops its green registration square, tints the tile and fills a 3 px line along its bottom edge. Per-operation rows follow, with skipped and blocked operations in their own treatment.
+5. **Run details** keeps created, updated, deleted, skipped, and backup counts on one line. The plan ID, backup hash, and receipt path open on request.
+
+Timing is real. The Rust execution and synchronization commands stamp every phase event with monotonic `elapsed_ms`; step durations and the total come only from those events, never from a UI timer. Only completed steps show a time.
 
 The support card appears only after a resolved run, never beside a timeout, stopped synchronization, or active monitoring.
 
-Local execution phases should be visually distinct and stable:
+The ten steps:
 
-- Validating frozen plan.
-- Closing Bambu Studio gracefully.
-- Staging.
-- Validating output.
-- Creating ZIP backup.
-- Committing files.
-- Writing journal and receipt.
-- Launching Bambu Studio.
-- Monitoring synchronization.
-- Finished or stopped.
+1. Validate frozen plan.
+2. Close Bambu Studio gracefully.
+3. Stage output.
+4. Validate output.
+5. Create ZIP backup.
+6. Commit files.
+7. Write journal and receipt.
+8. Launch Bambu Studio.
+9. Monitor synchronization.
+10. Finished or stopped.
 
 Never show a generic success toast. Report exact counts and per-item outcomes.
 
@@ -285,15 +292,30 @@ Do not suggest unpacking the full ZIP over an account. The ZIP is disaster-recov
 ## Accessibility and motion
 
 - Full keyboard operation.
-- Visible focus rings on every interactive element.
-- Minimum WCAG AA contrast.
+- Visible focus rings on every interactive element; spine focus rings are inset.
+- Minimum WCAG AA contrast in both themes, including muted text on the dark chrome.
 - Text and icons supplement semantic color.
 - Every input has a persistent label.
 - Tables retain meaningful headers.
 - Status updates use an appropriate live region without announcing noisy polling.
-- Respect `prefers-reduced-motion`.
+- 44 px targets on coarse pointers.
 - No auto-scroll, auto-rotate, or motion that fights manual navigation.
 - Preserve a 320 px minimum viewport without horizontal body scrolling.
+
+| Motion | Duration | Easing |
+| --- | --- | --- |
+| Accordion grow | 0.44 s | `cubic-bezier(.2,0,0,1)` |
+| Step content reveal | 0.36 s after 0.1 s | `cubic-bezier(.2,0,0,1)` |
+| Drilldown level slide | 0.26 s | `cubic-bezier(.2,0,0,1)` |
+| Theme icon swap | 0.28 s | `cubic-bezier(.2,0,0,1)` |
+| Route strand segment | 0.32 s | `cubic-bezier(.2,0,0,1)` |
+| Run rail fill and progress | 0.5 s | `cubic-bezier(.2,0,0,1)` |
+| Check draw | 0.35 s | `cubic-bezier(.2,0,0,1)` |
+| Active node pulse and orbit | 1.4 s and 0.9 s | ease-out and linear |
+| Status headline swap | 0.36 s | `cubic-bezier(.2,0,0,1)` |
+| Evidence line and mark pop | 0.6 s and 0.4 s | `cubic-bezier(.2,0,0,1)` |
+
+Under `prefers-reduced-motion: reduce` these transitions and animations are disabled. State changes stay visible through color, icon and text.
 
 ## Required controls and backing functionality
 
@@ -303,33 +325,30 @@ Every control below is required unless marked contextual. Each one must connect 
 
 | Control | UI form | Required behavior |
 | --- | --- | --- |
-| Theme | Three-option segmented control (System, Light, Dark) in the window bar appearance menu | Changes the document theme immediately and persists locally. |
+| Theme | One 40 × 40 icon button at the right end of the title bar | Cycles Automatic, then the opposite of what Automatic resolves to, then the remaining theme. Follows OS changes while on Automatic, names the current and next mode, and persists locally. |
 | Retry discovery | Button, shown after discovery failure | Re-runs installation, manifest, account, and executable discovery. |
 | Destination account | Select/menu of discovered accounts | Allows only backend-classified eligible accounts to become write targets. Ineligible accounts remain visible with a reason but cannot be selected. |
 | Source roots | Backend-discovered source labels, not editable path fields | Catalogs selected approved Orca/Bambu system and user roots through opaque IDs. |
-| Source folders | Disclosure with application/kind selectors and native picker | Requests an operating-system folder picker from Rust, validates the chosen root, and catalogs the returned opaque ID. No path crosses from the webview. |
+| Source folders | Section of the Catalog popover with application/kind selectors and native picker | Requests an operating-system folder picker from Rust, validates the chosen root, and catalogs the returned opaque ID. No path crosses from the webview. |
 | Registered source row | Read-only path, validation state, and Remove button | Shows persisted manual roots. Remove unregisters only the root and never deletes source profiles. |
 
 ### Source filtering and selection controls
 
 | Control | UI form | Required behavior |
 | --- | --- | --- |
-| Search | Text input | Filters names, vendor, material, family, and variant without losing hidden selections. |
-| Source application | Multi-select facet | Filters OrcaSlicer and Bambu Studio sources. |
-| Source kind | Multi-select facet | Filters factory/system and user/custom sources. |
-| Manufacturer | Multi-select facet | Filters canonical vendor values from the catalog. |
-| Material | Multi-select facet | Filters PLA, PETG, ABS, and other discovered values. |
-| Family | Multi-select facet | Filters discovered filament families. |
-| Variant | Multi-select facet | Filters discovered variants. |
-| Compatible printer | Multi-select facet | Filters source compatibility metadata. |
-| Migration status | Multi-select facet | Filters new, already migrated, incomplete, conflicting, and unsupported states. |
-| Selected only | Checkbox/toggle | Shows only currently selected source profiles. |
+| Source | Checklist menu grouped by application | Filters the four application and kind pairs. Select all and Clear all apply to all four. |
+| Manufacturer | Checklist menu with search | Filters canonical vendor values from the catalog. Select all and Clear all apply to the searched names only. |
+| Compatible printer | Checklist menu with search | Filters source compatibility metadata. |
+| Migration status | Checklist menu | Filters new, already migrated, incomplete, conflicting, and unsupported states. |
+| Search presets | Text input | Searches name, material and type within the current drilldown level without losing hidden selections. |
+| Material and type cards | Card grid with tri-state checkbox | Opens the next tier and selects or clears every visible preset in scope. |
+| Breadcrumb and up button | Navigation | Moves up one level, skipping an absent type tier. Mouse Back and Forward and Alt+arrows retrace visited levels. |
 | Source row selection | Checkbox per selectable profile | Adds or removes the source ID while preserving selection through filtering. Abstract profiles never receive this control. |
-| Select visible | Button/checkbox action | Selects only rows currently passing all filters. |
+| Select all N / Clear these | Button at the preset level and in search results | Selects or clears the visible presets in scope. |
+| Show selected only | Switch | Shows only currently selected source profiles. |
 | Clear selection | Button | Clears all selected source IDs. |
-| Active-filter chips | Removable chips | Remove one active filter without resetting unrelated filters. |
-| Filter preset name | Text input | Names a reusable filter preset. |
-| Save/load/delete filter preset | Buttons/menu | Persists and restores real filter state locally. |
+| Saved filters | Footer popover | Names, saves, loads and deletes the real filter state locally. |
+| Catalog | Footer popover | Shows catalog status, refreshes discovery, and manages source folders. |
 
 ### Printer and nozzle controls
 

@@ -60,6 +60,10 @@ export interface CatalogSource {
   name: string;
   vendor: string;
   material: string;
+  /** Backend picker group from filament_type, or "Other". */
+  material_archetype: string;
+  /** Backend picker type from preset-name keywords, or "Standard". */
+  material_type: string;
   family: string;
   variant: string;
   source_app: SourceApp;
@@ -280,6 +284,8 @@ export type ExecutionPhase =
 export interface ExecutionProgressEvent {
   plan_id: string;
   phase: ExecutionPhase;
+  /** Monotonic milliseconds since execution started, when this phase began. */
+  elapsed_ms: number;
 }
 
 export type SyncPhase = "launching" | "monitoring" | "finished";
@@ -287,6 +293,8 @@ export type SyncPhase = "launching" | "monitoring" | "finished";
 export interface SyncProgressEvent {
   run_id: string;
   phase: SyncPhase;
+  /** Monotonic milliseconds since synchronization started, when this phase began. */
+  elapsed_ms: number;
 }
 
 export interface SyncObservation {

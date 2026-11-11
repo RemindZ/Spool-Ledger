@@ -15,16 +15,15 @@ describe("desktop layout containment", () => {
     );
   });
 
-  it("sizes the printer summary artwork column to the artwork tile", () => {
+  it("lays out enabled printers as a card grid", () => {
     expect(css).toMatch(
-      /\.printer-card summary\s*\{[^}]*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)\s+auto;/s,
+      /\.printer-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(280px,\s*1fr\)\);/s,
     );
+    expect(css).toContain(".printer-grid .printer:has(.nozzle-check:checked)");
   });
 
-  it("wraps execution phase names instead of truncating them", () => {
-    const label = css.match(
-      /\.execution-phases li > span:nth-child\(2\)\s*\{([^}]*)\}/,
-    );
+  it("wraps run step names instead of truncating them", () => {
+    const label = css.match(/\.phase-name\s*\{([^}]*)\}/);
     expect(label?.[1]).toBeDefined();
     expect(label?.[1]).not.toMatch(/white-space:\s*nowrap|text-overflow/);
   });
@@ -49,15 +48,42 @@ describe("desktop layout containment", () => {
     );
   });
 
-  it("keeps the setup workspace within the available desktop viewport", () => {
+  it("keeps the step bench within the available desktop viewport", () => {
     expect(css).toMatch(
-      /\.workspace-shell:has\(\.setup-view\)\s*\{[^}]*height:\s*calc\(100dvh\s*-\s*96px\);[^}]*overflow:\s*hidden;/s,
+      /\.route-shell\s*\{[^}]*height:\s*clamp\(540px,\s*calc\(100dvh - 262px\),\s*940px\);[^}]*overflow:\s*hidden;/s,
     );
     expect(css).toMatch(
-      /\.setup-view\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto;/s,
+      /\.route-shell > \.step-rail\.is-open > \.rail-body\s*\{[^}]*overflow:\s*auto;/s,
+    );
+    expect(css).toMatch(/\.picker-stage\s*\{[^}]*overflow:\s*auto;/s);
+    expect(css).toMatch(
+      /\.route-shell > \.step-rail\.is-open > \.rail-head,\s*\.route-shell > \.step-rail\.is-open > \.rail-body\s*\{[^}]*min-width:\s*600px;/s,
+    );
+  });
+
+  it("animates the accordion and drilldown with the specified timings", () => {
+    expect(css).toMatch(
+      /\.route-shell > \.step-rail\s*\{[^}]*flex:\s*0 0 84px;[^}]*transition:\s*flex-grow 0\.44s var\(--ease-standard\);/s,
     );
     expect(css).toMatch(
-      /\.setup-view\s+\.(?:naming|destination)-rail[\s\S]*overflow-y:\s*auto;/,
+      /animation:\s*rail-reveal 0\.36s 0\.1s var\(--ease-standard\) both;/,
+    );
+    expect(css).toMatch(
+      /animation:\s*tier-in 0\.26s var\(--ease-standard\) both;/,
+    );
+    expect(css).toMatch(
+      /transition:\s*background-color 0\.32s var\(--ease-standard\);/,
+    );
+    expect(css).toMatch(
+      /--ease-standard:\s*cubic-bezier\(0\.2,\s*0,\s*0,\s*1\);/,
+    );
+  });
+
+  it("stacks the accordion into horizontal 68px bars below 900px", () => {
+    const narrow = css.slice(css.lastIndexOf("@media (max-width: 900px)"));
+    expect(narrow).toMatch(/\.route-shell\s*\{[^}]*flex-direction:\s*column;/s);
+    expect(narrow).toMatch(
+      /\.rail-spine\s*\{[^}]*min-height:\s*68px;[^}]*flex-direction:\s*row;/s,
     );
   });
 });

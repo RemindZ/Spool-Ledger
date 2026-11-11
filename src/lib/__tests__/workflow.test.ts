@@ -240,7 +240,7 @@ describe("workflow panels", () => {
     );
     expect(onSavePreset).toHaveBeenCalledWith("Panchroma clean");
 
-    await fireEvent.click(screen.getByText("Advanced outputs"));
+    await fireEvent.click(screen.getByText("Outputs"));
     await fireEvent.click(
       screen.getByLabelText("Create Bambu slicing presets"),
     );
@@ -363,7 +363,7 @@ describe("workflow panels", () => {
     });
 
     expect(
-      screen.getByText("Select a source and nozzle to preview names."),
+      screen.getByText("Select a preset and a nozzle to preview names."),
     ).toBeInTheDocument();
   });
 
@@ -407,7 +407,7 @@ describe("workflow panels", () => {
         },
       ],
     };
-    render(RunProgress, {
+    const { container } = render(RunProgress, {
       props: {
         plan: executablePlan,
         progress: {
@@ -416,8 +416,14 @@ describe("workflow panels", () => {
         running: false,
       },
     });
-    expect(screen.getByText("Cloud ID assigned")).toBeInTheDocument();
-    expect(screen.getByText("AMS check pending")).toBeInTheDocument();
+    const operations = within(
+      container.querySelector(".operation-progress-list") as HTMLElement,
+    );
+    expect(operations.getByText("Cloud ID assigned")).toBeInTheDocument();
+    expect(operations.getByText("AMS check pending")).toBeInTheDocument();
+    expect(container.querySelectorAll(".evidence-tile.reached")).toHaveLength(
+      3,
+    );
     expect(screen.getByText("1 / 1 committed")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 acknowledged")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 IDs assigned")).toBeInTheDocument();
@@ -452,7 +458,7 @@ describe("workflow panels", () => {
         },
       ],
     };
-    render(RunProgress, {
+    const { container } = render(RunProgress, {
       props: {
         plan: mixedPlan,
         progress: {
@@ -462,8 +468,11 @@ describe("workflow panels", () => {
       },
     });
 
+    const list = within(
+      container.querySelector(".operation-progress-list") as HTMLElement,
+    );
     const status = (label: string) =>
-      screen.getByText(label).closest(".operation-progress-row");
+      list.getByText(label).closest(".operation-progress-row");
     expect(status("Created locally")).toHaveAttribute(
       "data-status",
       "evidence",
@@ -479,11 +488,11 @@ describe("workflow panels", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Evidence" }),
+      screen.getByRole("heading", { name: "Migration evidence" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Each level is recorded separately. Only you can confirm AMS.",
+        "Each level is recorded separately. Only you can confirm AMS visibility.",
       ),
     ).toBeInTheDocument();
   });

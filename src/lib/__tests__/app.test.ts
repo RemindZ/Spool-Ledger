@@ -40,6 +40,8 @@ const source = {
   name: "Panchroma PLA Satin @BBL X1C",
   vendor: "Polymaker",
   material: "PLA",
+  material_archetype: "PLA",
+  material_type: "Standard",
   family: "Panchroma",
   variant: "Satin",
   source_app: "orca_slicer" as const,
@@ -205,6 +207,32 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+/** The workspace is ready once the material cards render. */
+function workspaceReady() {
+  return screen.findByRole("heading", { name: "PLA" });
+}
+
+async function selectSourceAndNozzle() {
+  await workspaceReady();
+  await fireEvent.click(
+    screen.getByRole("button", { name: /Browse 1 preset/ }),
+  );
+  await fireEvent.click(await screen.findByLabelText(`Select ${source.name}`));
+  await fireEvent.click(screen.getByLabelText("0.4 mm"));
+}
+
+async function continueToReview() {
+  await fireEvent.click(
+    screen.getByRole("button", { name: /Continue to naming/ }),
+  );
+  await fireEvent.click(
+    screen.getByRole("button", { name: /Continue to printers/ }),
+  );
+  await fireEvent.click(
+    screen.getByRole("button", { name: /Continue to review/ }),
+  );
+}
+
 describe("application workflow", () => {
   it("shows first-run defaults once before entering the migration workspace", async () => {
     localStorage.clear();
@@ -287,7 +315,7 @@ describe("application workflow", () => {
     ).toBeInTheDocument();
     finishTargets({ catalog_id: "targets-1", printers: [printer] });
 
-    expect(await screen.findByText(source.name)).toBeInTheDocument();
+    expect(await workspaceReady()).toBeInTheDocument();
   });
 
   it("notifies about a newer release and remembers a skipped version", async () => {
@@ -313,7 +341,7 @@ describe("application workflow", () => {
     first.unmount();
 
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
     await waitFor(() => expect(mocks.checkForUpdate).toHaveBeenCalledTimes(2));
     expect(
       screen.queryByRole("heading", { name: "Update available" }),
@@ -348,43 +376,36 @@ describe("application workflow", () => {
     expect(localStorage.getItem("bfm.update.skipped")).toBeNull();
   });
 
-  it("filters the source table from the bar inside the filament panel", async () => {
+  it("searches presets inside the filament step and clears the search", async () => {
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
-    const panel = screen
-      .getByRole("heading", { name: "Filament profiles" })
-      .closest("section")!;
     await fireEvent.input(
-      within(panel).getByLabelText("Search source profiles"),
-      { target: { value: "no such filament" } },
+      screen.getByLabelText("Search presets in this view"),
+      {
+        target: { value: "no such filament" },
+      },
     );
     expect(
-      await screen.findByText("No profiles match these filters"),
+      await screen.findByText("No presets match “no such filament”"),
     ).toBeInTheDocument();
-    const chip = within(screen.getByLabelText("Active filters")).getByRole(
-      "button",
-      { name: /Search: no such filament/ },
+    await fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(await workspaceReady()).toBeInTheDocument();
+
+    await fireEvent.input(
+      screen.getByLabelText("Search presets in this view"),
+      {
+        target: { value: "satin" },
+      },
     );
-    await fireEvent.click(chip);
-    expect(await screen.findByText(source.name)).toBeInTheDocument();
+    expect(await screen.findByText("PLA · Standard")).toBeInTheDocument();
+    expect(screen.getByLabelText(`Select ${source.name}`)).toBeInTheDocument();
   });
 
-  it("orders the real setup route and reports derived setup counts", async () => {
+  it("orders the three steps and reports live counts in the spines and action bar", async () => {
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
-    expect(
-      screen.queryByRole("heading", { name: "Prepare migration" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Filament migration route"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Nothing is written until you review and commit the plan.",
-      ),
-    ).toBeInTheDocument();
     const sourceHeading = screen.getByRole("heading", {
       name: "Filament profiles",
     });
@@ -400,19 +421,66 @@ describe("application workflow", () => {
       namingHeading.compareDocumentPosition(targetHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      screen.getByText("Pick the presets to migrate. Nothing is written yet."),
+    ).toBeInTheDocument();
 
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    expect(screen.getByLabelText("1 source")).toBeInTheDocument();
-    expect(screen.getByLabelText("1 nozzle")).toBeInTheDocument();
-    expect(screen.getByLabelText("2 outputs")).toBeInTheDocument();
+    await selectSourceAndNozzle();
+    const bar = document.querySelector(".route-bar") as HTMLElement;
+    expect(bar).toHaveTextContent("1 source");
+    expect(bar).toHaveTextContent("1 target");
+    expect(bar).toHaveTextContent("2 outputs");
+    expect(
+      screen.getByRole("button", {
+        name: "Open step 2, Naming · 2 outputs",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Open step 3, Printers & nozzles · 1 target",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("walks the accordion with Continue, Back and the step spines", async () => {
+    render(App);
+    await selectSourceAndNozzle();
+    const bar = document.querySelector(".route-bar") as HTMLElement;
+    expect(bar).toHaveTextContent("Step 1 of 3 · Filament profiles");
+    expect(within(bar).queryByRole("button", { name: "Back" })).toBeNull();
+    expect(within(bar).getByText("Ready to continue")).toBeInTheDocument();
+
+    await fireEvent.click(
+      screen.getByRole("button", { name: /Continue to naming/ }),
+    );
+    expect(bar).toHaveTextContent("Step 2 of 3 · Naming");
+    expect(document.getElementById("step-naming")).toHaveClass("is-open");
+    expect(document.getElementById("step-sources")).toHaveClass("is-done");
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Naming" })).toHaveFocus(),
+    );
+
+    await fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open step 3, Printers & nozzles · 1 target",
+      }),
+    );
+    expect(bar).toHaveTextContent("Step 3 of 3 · Printers & nozzles");
+    expect(within(bar).getByText("Ready to build")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Continue to review/ }),
+    ).toBeEnabled();
+
+    await fireEvent.click(within(bar).getByRole("button", { name: "Back" }));
+    expect(bar).toHaveTextContent("Step 2 of 3 · Naming");
+    expect(mocks.buildPlan).not.toHaveBeenCalled();
   });
 
   it("navigates four truthful workspace views with the keyboard", async () => {
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
-    const setup = screen.getByRole("tab", { name: "Setup" });
+    const setup = screen.getByRole("tab", { name: "Workspace" });
     expect(setup).toHaveAttribute("aria-selected", "true");
 
     await fireEvent.keyDown(setup, { key: "ArrowRight" });
@@ -439,7 +507,7 @@ describe("application workflow", () => {
   it("discovers catalogs, builds an explicit plan, and commits only after review", async () => {
     render(App);
 
-    expect(await screen.findByText(source.name)).toBeInTheDocument();
+    expect(await workspaceReady()).toBeInTheDocument();
     expect(mocks.catalogSources).toHaveBeenCalledWith(
       ["orca-system"],
       expect.any(Function),
@@ -450,11 +518,8 @@ describe("application workflow", () => {
     );
     expect(screen.queryByText("Show custom printers")).not.toBeInTheDocument();
 
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await selectSourceAndNozzle();
+    await continueToReview();
 
     expect(
       await screen.findByDisplayValue("Panchroma Satin - H2C"),
@@ -503,12 +568,12 @@ describe("application workflow", () => {
         expect.any(Function),
       ),
     );
-    expect(await screen.findByText("Cloud ID assigned")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 1 IDs assigned")).toBeInTheDocument();
   });
 
   it("manages enabled destination printers from the cogwheel", async () => {
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
     await fireEvent.click(
       screen.getByRole("button", { name: "Manage enabled printers" }),
@@ -525,7 +590,7 @@ describe("application workflow", () => {
 
     expect(
       screen.getByText(
-        "No printers enabled. Use the settings button to add an official Bambu printer.",
+        "No printers enabled. Use Manage enabled printers to add an official Bambu printer.",
       ),
     ).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("bfm.workspace")!)).toMatchObject({
@@ -555,12 +620,9 @@ describe("application workflow", () => {
     });
 
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
 
     const dialog = await screen.findByRole("dialog", {
       name: "Target profile required",
@@ -614,12 +676,9 @@ describe("application workflow", () => {
       receipt_path: "receipt.json",
     });
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
     await screen.findByText("Skip");
     await fireEvent.click(
       screen.getByRole("button", { name: "Commit migration" }),
@@ -658,9 +717,9 @@ describe("application workflow", () => {
       ],
     });
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
-    await fireEvent.click(screen.getByText("Source folders"));
+    await fireEvent.click(screen.getByText("Catalog"));
     await fireEvent.change(screen.getByLabelText("Source application"), {
       target: { value: "bambu_studio" },
     });
@@ -714,12 +773,9 @@ describe("application workflow", () => {
         plan: { id: "plan-updated", operations: [updated] },
       });
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
     await screen.findByText("Existing settings differ");
 
     await fireEvent.change(
@@ -747,16 +803,13 @@ describe("application workflow", () => {
 
   it("rebuilds an existing plan when per-run outputs change", async () => {
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
     await screen.findByDisplayValue("Panchroma Satin - H2C");
 
-    await fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    await fireEvent.click(screen.getByText("Advanced outputs"));
+    await fireEvent.click(screen.getByRole("tab", { name: "Workspace" }));
+    await fireEvent.click(screen.getByText("Outputs"));
     await fireEvent.click(screen.getByLabelText("Create AMS custom filaments"));
 
     await waitFor(() => expect(mocks.buildPlan).toHaveBeenCalledTimes(2));
@@ -786,12 +839,9 @@ describe("application workflow", () => {
       ],
     }));
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
     await screen.findByDisplayValue("Panchroma Satin - H2C");
     await fireEvent.click(
       screen.getByRole("button", { name: "Commit migration" }),
@@ -810,7 +860,7 @@ describe("application workflow", () => {
     );
 
     await waitFor(() => expect(mocks.synchronizeRun).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("Cloud ID assigned")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 1 IDs assigned")).toBeInTheDocument();
   });
 
   it("cancels active monitoring by its committed run id", async () => {
@@ -824,12 +874,9 @@ describe("application workflow", () => {
       },
     );
     render(App);
-    await screen.findByText(source.name);
-    await fireEvent.click(screen.getByLabelText(`Select ${source.name}`));
-    await fireEvent.click(screen.getByLabelText("0.4 mm"));
-    await fireEvent.click(
-      screen.getByRole("button", { name: "Build migration plan" }),
-    );
+    await workspaceReady();
+    await selectSourceAndNozzle();
+    await continueToReview();
     await screen.findByDisplayValue("Panchroma Satin - H2C");
     await fireEvent.click(
       screen.getByRole("button", { name: "Commit migration" }),
@@ -858,24 +905,46 @@ describe("application workflow", () => {
     persistWorkspacePreferences(localStorage, workspace);
 
     render(App);
-    await screen.findByText(source.name);
+    await workspaceReady();
 
     expect(
       screen.getByText(
         "Remove slicing-only @, {printer_code} from this AMS template.",
       ),
     ).toBeInTheDocument();
+    await fireEvent.click(
+      screen.getByRole("button", { name: /Continue to naming/ }),
+    );
+    expect(screen.getByText("Fix the AMS template")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Build migration plan" }),
+      screen.getByRole("button", { name: /Continue to printers/ }),
     ).toBeDisabled();
   });
 
-  it("blocks planning until a source, nozzle, and eligible account are selected", async () => {
+  it("checks readiness for each step before continuing", async () => {
     render(App);
-    await screen.findByText(source.name);
-    const build = screen.getByRole("button", { name: "Build migration plan" });
-    expect(build).toBeDisabled();
-    expect(screen.getByText("Select a source and nozzle")).toBeInTheDocument();
+    await workspaceReady();
+    expect(
+      screen.getByRole("button", { name: /Continue to naming/ }),
+    ).toBeDisabled();
+    expect(screen.getByText("Select a preset")).toBeInTheDocument();
+
+    await fireEvent.click(
+      screen.getByRole("button", { name: /Browse 1 preset/ }),
+    );
+    await fireEvent.click(
+      await screen.findByLabelText(`Select ${source.name}`),
+    );
+    await fireEvent.click(
+      screen.getByRole("button", { name: /Continue to naming/ }),
+    );
+    await fireEvent.click(
+      screen.getByRole("button", { name: /Continue to printers/ }),
+    );
+    expect(screen.getByText("Select hardware")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Continue to review/ }),
+    ).toBeDisabled();
   });
 
   it("surfaces discovery failures with a retry action", async () => {
@@ -890,6 +959,6 @@ describe("application workflow", () => {
       screen.getByRole("button", { name: "Retry discovery" }),
     );
     await waitFor(() => expect(mocks.discover).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText(source.name)).toBeInTheDocument();
+    expect(await workspaceReady()).toBeInTheDocument();
   });
 });

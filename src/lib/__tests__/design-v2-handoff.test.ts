@@ -43,47 +43,131 @@ describe("Spool Ledger design v2 handoff", () => {
     }
   });
 
-  it("uses the approved green-black dark palette and stable navigation surface", () => {
+  it("uses the sage light and lifted-charcoal dark palettes", () => {
     const css = read("src/app.css");
+    const light = css.slice(
+      css.indexOf(":root {"),
+      css.indexOf("}", css.indexOf(":root {")),
+    );
 
-    expect(css.match(/--ground:\s*#0d1410/gi)).toHaveLength(2);
-    expect(css.match(/--surface:\s*#131d18/gi)).toHaveLength(2);
-    expect(css.match(/--surface-raised:\s*#1a2720/gi)).toHaveLength(2);
-    expect(css.match(/--text:\s*#eef4f0/gi)).toHaveLength(2);
-    expect(css.match(/--line:\s*#2d4136/gi)).toHaveLength(2);
-    expect(css.match(/--bambu:\s*#10bd52/gi)).toHaveLength(2);
-    expect(css).toMatch(
-      /\.workspace-tabs\s*\{[^}]*background:\s*var\(--surface\)/s,
+    expect(light).toContain("--ground: oklch(91% 0.022 160.07);");
+    expect(light).toContain("--surface: oklch(97% 0.009 165.08);");
+    expect(light).toContain("--line: oklch(80% 0.025 159.87);");
+    expect(light).toContain("--bambu: oklch(59.84% 0.1735 147.93);");
+    for (const token of [
+      "--ground: oklch(28% 0.01 163.06);",
+      "--surface: oklch(32% 0.012 163.06);",
+      "--surface-raised: oklch(36% 0.014 163.06);",
+      "--text: oklch(90% 0.008 163.06);",
+      "--line: oklch(43% 0.016 163.06);",
+      "--bambu: oklch(70% 0.112 147.93);",
+    ]) {
+      expect(css.split(token), token).toHaveLength(3);
+    }
+    expect(css).not.toMatch(/#0d1410/i);
+  });
+
+  it("ships the 2026-10-02 textures and step icons byte for byte with provenance notes", () => {
+    const approved = {
+      "filament-header-texture.png":
+        "f484218115402b8a75d3f2af1e12d33370c07c9746ba6032b8520db9cd0a522e",
+      "texture-companion-infill.png":
+        "eb7d36de820d49cddc2261d1c1065f93efbc041f88fd2457cb6251f0d1f7575b",
+      "step-icon-filament.png":
+        "60b8db5f35a5d0cdf16531d9c041ff6cdb5f8dbb3d7e5b7ed83fa967cf5afc2c",
+      "step-icon-naming.png":
+        "32e753a5ed2099c4135bd18e88d6c587f53bc01ad7be3db07a545b5d0bbfca7e",
+      "step-icon-printer.png":
+        "63023ca5a10a80519708d8fdf29f99327dba8c69f3cc7d9ef3cca6402b0c7be2",
+    };
+    for (const [name, hash] of Object.entries(approved)) {
+      const asset = `${root}/public/design/${name}`;
+      expect(
+        createHash("sha256").update(readFileSync(asset)).digest("hex"),
+        name,
+      ).toBe(hash);
+    }
+    for (const note of [
+      "filament-header-texture.md",
+      "texture-companion-infill.md",
+      "step-icons.md",
+    ]) {
+      expect(existsSync(`${root}/public/design/${note}`), note).toBe(true);
+    }
+  });
+
+  it("keeps the photo texture on the title bar and the infill on step surfaces only", () => {
+    const css = read("src/app.css");
+    const ruleSelector = (index: number) => {
+      const start = css.lastIndexOf("}", index) + 1;
+      return css.slice(start, css.indexOf("{", start)).trim();
+    };
+    const photo = [...css.matchAll(/filament-header-texture\.png/g)];
+    expect(photo).toHaveLength(1);
+    expect(ruleSelector(photo[0].index)).toBe(".titlebar::before");
+    const photoRule = css.slice(
+      photo[0].index - 200,
+      css.indexOf("}", photo[0].index),
+    );
+    expect(photoRule).toMatch(/center 54%\s*\/\s*cover/);
+    expect(photoRule).toMatch(/opacity:\s*0\.32/);
+
+    const selectors = [
+      ...css.matchAll(/var\(--spine-pattern\)|texture-companion-infill\.png/g),
+    ].map((match) => ruleSelector(match.index));
+    for (const selector of selectors) {
+      expect(selector).toMatch(
+        /^(:root|\.rail-spine(:hover)?|\.step-rail > \.rail-head|\.run-rail-head)$/,
+      );
+    }
+    expect(new Set(selectors)).toEqual(
+      new Set([
+        ":root",
+        ".rail-spine",
+        ".rail-spine:hover",
+        ".step-rail > .rail-head",
+        ".run-rail-head",
+      ]),
     );
   });
 
-  it("styles source selection as a complete custom checkbox state family", () => {
-    const sourceTable = read("src/lib/components/SourceTable.svelte");
+  it("styles source selection as a complete orange checkbox state family", () => {
+    const picker = read("src/lib/components/FilamentPicker.svelte");
     const css = read("src/app.css");
 
-    expect(sourceTable).toContain('class="source-profile-check"');
-    expect(css).toMatch(/\.source-profile-check\s*\{[^}]*appearance:\s*none/s);
-    expect(css).toContain(".source-profile-check:hover");
-    expect(css).toContain(".source-profile-check:checked");
-    expect(css).toContain(".source-profile-check:focus-visible");
-    expect(css).toContain(".source-profile-check:disabled");
+    expect(picker).toContain('class="source-check"');
+    expect(css).toMatch(/\.source-check\s*\{[^}]*appearance:\s*none/s);
+    expect(css).toMatch(
+      /\.source-check:checked\s*\{[^}]*var\(--(source|orca)\)/s,
+    );
+    expect(css).toMatch(
+      /\.source-check:indeterminate\s*\{[^}]*var\(--(source|orca)\)/s,
+    );
+    expect(css).toContain(".source-check:focus-visible");
+    expect(css).toContain(".source-check:disabled");
   });
 
-  it("uses square workflow tiles, registration notches, one help glyph, and one transition treatment", () => {
+  it("uses one help glyph and honours reduced motion for every 2026-10-02 animation", () => {
     const naming = read("src/lib/components/NamingPanel.svelte");
     const css = read("src/app.css");
 
     expect(naming).not.toContain("CircleHelp");
-    expect(naming).toContain(
-      '<span class="help-glyph" aria-hidden="true">?</span>',
-    );
-    expect(css).toMatch(/\.panel-step\s*\{[^}]*border-radius:\s*5px/s);
-    expect(css).toContain(".source-rail::before");
-    expect(css).toContain(".destination-rail::before");
-    expect(css).toMatch(
-      /\.workspace-view\s*\{[^}]*animation:\s*workspace-view-in/s,
-    );
-    expect(css).toContain("@keyframes workspace-view-in");
+    const reduced = css
+      .split("@media (prefers-reduced-motion: reduce)")
+      .slice(1)
+      .map((part) => part.slice(0, part.indexOf("\n}")))
+      .join("\n");
+    for (const selector of [
+      ".step-rail",
+      ".picker-stage",
+      ".theme-icon",
+      ".route-strand",
+      ".phase-node",
+      ".evidence-tile",
+      ".run-status-headline",
+    ]) {
+      expect(reduced, selector).toContain(selector);
+    }
   });
 
   it("keeps local design directories ignored", () => {
@@ -106,7 +190,7 @@ describe("Spool Ledger design v2 handoff", () => {
 
     expect(design).toContain("# Spool Ledger Design Handoff");
     expect(design).toContain("Bambu Filament Migrator");
-    expect(design).toContain("`#0D1410`");
+    expect(design).toContain("oklch(28% 0.01 163.06)");
     expect(design).toContain("first-run setup");
     expect(design).toContain("Target profile required");
     expect(design).toContain("Registered source row");

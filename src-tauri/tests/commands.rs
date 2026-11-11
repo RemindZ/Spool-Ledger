@@ -305,6 +305,29 @@ fn source_catalog_reports_loading_resolving_and_completion_counts() {
 }
 
 #[test]
+fn source_catalog_classifies_material_archetype_and_type() {
+    let mut fixture = fixture_service(true);
+    let response = fixture
+        .service
+        .catalog_sources(CatalogSourcesRequest {
+            root_ids: vec!["source:orca:system".to_owned()],
+        })
+        .unwrap();
+
+    let source = response
+        .sources
+        .iter()
+        .find(|source| source.id.0 == SOURCE_PROFILE_ID)
+        .unwrap();
+    assert_eq!(source.material, "PLA");
+    assert_eq!(source.material_archetype, "PLA");
+    assert_eq!(source.material_type, "Standard");
+    let json = serde_json::to_value(source).unwrap();
+    assert_eq!(json["material_archetype"], "PLA");
+    assert_eq!(json["material_type"], "Standard");
+}
+
+#[test]
 fn target_catalog_reports_loading_resolving_and_completion_counts() {
     let mut fixture = fixture_service(true);
     let mut events = Vec::new();

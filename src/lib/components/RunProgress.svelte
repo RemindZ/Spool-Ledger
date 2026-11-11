@@ -3,10 +3,7 @@
     AlertOctagon,
     CheckCircle2,
     CircleDashed,
-    Cloud,
-    HardDrive,
     MinusCircle,
-    ShieldCheck,
   } from "@lucide/svelte";
   import type { MigrationPlan } from "../types";
   import type { OperationProgress } from "../state";
@@ -19,7 +16,7 @@
     onCancel = () => {},
     onVerify = () => {},
   }: {
-    plan: MigrationPlan;
+    plan: MigrationPlan | null;
     progress: Record<string, OperationProgress>;
     running: boolean;
     cancellable?: boolean;
@@ -34,8 +31,9 @@
     ams_verified: "AMS verified",
   } as const;
 
+  const operations = $derived(plan?.operations ?? []);
   const trackedOperations = $derived(
-    plan.operations.filter(
+    operations.filter(
       (operation) =>
         operation.action !== "block" && operation.action !== "skip",
     ),
@@ -63,8 +61,34 @@
       (operation) => progress[operation.id]?.evidence === "ams_verified",
     ).length,
   );
+  const tiles = $derived([
+    {
+      name: "Created locally",
+      description: "Committed and parse-validated locally.",
+      count: localCount,
+      unit: "committed",
+    },
+    {
+      name: "Loaded by Bambu",
+      description: "Bambu Studio acknowledged the local artifact.",
+      count: loadedCount,
+      unit: "acknowledged",
+    },
+    {
+      name: "Cloud ID assigned",
+      description: "A unique setting ID appeared in its sidecar.",
+      count: cloudCount,
+      unit: "IDs assigned",
+    },
+    {
+      name: "AMS confirmed",
+      description: "Operator confirmed the intended AMS surface.",
+      count: amsCount,
+      unit: "operator verified",
+    },
+  ]);
   const verifiedIds = $derived(
-    plan.operations
+    operations
       .filter(
         (operation) => progress[operation.id]?.evidence === "cloud_id_assigned",
       )
@@ -74,80 +98,64 @@
 
 <section class="run-progress panel" aria-labelledby="progress-heading">
   <header class="panel-heading">
-    <h2 id="progress-heading">Evidence</h2>
-    <p>Each level is recorded separately. Only you can confirm AMS.</p>
+    <h2 id="progress-heading">Migration evidence</h2>
+    <p>
+      Each level is recorded separately. Only you can confirm AMS visibility.
+    </p>
   </header>
 
-  <ol class="evidence-steps">
-    <li class:active={localCount > 0}>
-      <HardDrive size={17} /><span
-        ><strong>Local</strong><small>Files committed and parsed</small><small
-          class="evidence-count">{localCount} / {trackedCount} committed</small
-        ></span
-      >
-    </li>
-    <li class:active={loadedCount > 0}>
-      <CheckCircle2 size={17} /><span
-        ><strong>Bambu</strong><small>Profile acknowledged locally</small><small
-          class="evidence-count"
-          >{loadedCount} / {trackedCount} acknowledged</small
-        ></span
-      >
-    </li>
-    <li class:active={cloudCount > 0}>
-      <Cloud size={17} /><span
-        ><strong>Cloud</strong><small>Unique PFUS ID observed</small><small
-          class="evidence-count"
-          >{cloudCount} / {trackedCount} IDs assigned</small
-        ></span
-      >
-    </li>
-    <li class:active={amsCount > 0}>
-      <ShieldCheck size={17} /><span
-        ><strong>AMS</strong><small>Operator-confirmed only</small><small
-          class="evidence-count"
-          >{amsCount} / {trackedCount} operator verified</small
-        ></span
-      >
-    </li>
-  </ol>
-
-  <div class="operation-progress-list">
-    {#each plan.operations as operation (operation.id)}
-      {@const item = progress[operation.id]}
-      {@const status = item
-        ? "evidence"
-        : operation.action === "skip" || operation.action === "block"
-          ? operation.action
-          : "waiting"}
-      <div class="operation-progress-row" data-status={status}>
-        {#if status === "evidence"}<CheckCircle2
-            size={15}
-          />{:else if status === "skip"}<MinusCircle
-            size={15}
-          />{:else if status === "block"}<AlertOctagon
-            size={15}
-          />{:else}<CircleDashed size={15} />{/if}
-        <span
-          ><strong>{operation.ams_name}</strong><small
-            >{operation.printer_preset_name}</small
+  <ol class="evidence-grid">
+    {#each tiles as tile (tile.name)}
+      <li class="evidence-tile" class:reached={tile.count > 0}>
+        <span class="evidence-name"
+          >{tile.name}<span class="sr-only"
+            >{` ${tile.count > 0 ? "reached" : "not reached"}`}</span
           ></span
         >
-        <span class="evidence-label"
-          >{item
-            ? evidenceLabels[item.evidence]
-            : status === "skip"
-              ? "Skipped"
-              : status === "block"
-                ? "Blocked"
-                : "Waiting"}</span
+        <p>{tile.description}</p>
+        <small class="evidence-count"
+          >{tile.count} / {trackedCount} {tile.unit}</small
         >
-        {#if item?.evidence === "cloud_id_assigned"}
-          <span class="pending-label">AMS check pending</span>
-        {/if}
-      </div>
+      </li>
     {/each}
-  </div>
+  </ol>
+
+  {#if operations.length}<div class="operation-progress-list">
+      {#each operations as operation (operation.id)}
+        {@const item = progress[operation.id]}
+        {@const status = item
+          ? "evidence"
+          : operation.action === "skip" || operation.action === "block"
+            ? operation.action
+            : "waiting"}
+        <div class="operation-progress-row" data-status={status}>
+          {#if status === "evidence"}<CheckCircle2
+              size={15}
+            />{:else if status === "skip"}<MinusCircle
+              size={15}
+            />{:else if status === "block"}<AlertOctagon
+              size={15}
+            />{:else}<CircleDashed size={15} />{/if}
+          <span
+            ><strong>{operation.ams_name}</strong><small
+              >{operation.printer_preset_name}</small
+            ></span
+          >
+          <span class="evidence-label"
+            >{item
+              ? evidenceLabels[item.evidence]
+              : status === "skip"
+                ? "Skipped"
+                : status === "block"
+                  ? "Blocked"
+                  : "Waiting"}</span
+          >
+          {#if item?.evidence === "cloud_id_assigned"}
+            <span class="pending-label">AMS check pending</span>
+          {/if}
+        </div>
+      {/each}
+    </div>{/if}
 
   <footer class="panel-actions">
     {#if running && cancellable}

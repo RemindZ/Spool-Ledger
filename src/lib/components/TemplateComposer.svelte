@@ -245,23 +245,43 @@
       role="group"
       aria-label={`${label} variables`}
     >
-      {#each TEMPLATE_TOKENS as token (token.value)}
+      <div class="variable-picker-head">
+        <span
+          ><strong>Name variables</strong><small>Adds to {label}.</small></span
+        >
         <button
           type="button"
-          class="template-variable"
-          draggable={!outOfScope(token.scope)}
-          disabled={outOfScope(token.scope)}
-          aria-label={`Insert ${token.label}`}
-          title={outOfScope(token.scope)
-            ? `${token.label} is available only for slicing preset names.`
-            : `Insert ${token.value}`}
-          onclick={() => insertVariable(token.value)}
-          onkeydown={handleMenuKeydown}
-          ondragstart={(event) => beginVariableDrag(event, token.value)}
+          class="btn btn-quiet"
+          aria-label="Close variables"
+          onclick={() => {
+            menuOpen = false;
+            menuButton?.focus();
+          }}
+          onkeydown={handleMenuKeydown}>Close</button
         >
-          {token.value}
-        </button>
-      {/each}
+      </div>
+      <div class="variable-list">
+        {#each TEMPLATE_TOKENS as token (token.value)}
+          <button
+            type="button"
+            class="template-variable"
+            draggable={!outOfScope(token.scope)}
+            disabled={outOfScope(token.scope)}
+            aria-label={`Insert ${token.label}`}
+            title={outOfScope(token.scope)
+              ? `${token.label} is available only for slicing preset names.`
+              : `Insert ${token.value}`}
+            onclick={() => insertVariable(token.value)}
+            onkeydown={handleMenuKeydown}
+            ondragstart={(event) => beginVariableDrag(event, token.value)}
+          >
+            {token.value}
+          </button>
+        {/each}
+      </div>
+      <p class="variable-scope-note">
+        Printer, nozzle, and @ are only available for slicing presets.
+      </p>
     </div>
   {/if}
   {#if violations.length > 0}
